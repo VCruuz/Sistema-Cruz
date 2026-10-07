@@ -6,6 +6,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import java.time.LocalDate;
 
 @Entity
@@ -23,6 +25,8 @@ public class Relatorio {
     // --- VÍNCULO OBRIGATÓRIO COM SERVIÇO ---
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_servico", nullable = false)
+    // Relatórios órfãos (serviço apagado sem cascata) não derrubam a listagem
+    @NotFound(action = NotFoundAction.IGNORE)
     @JsonIgnoreProperties({"hibernateLazyInitializer","handler","servicoOrigem"})
     @NotNull(message = "Serviço vinculado é obrigatório.")
     private Servico servico;

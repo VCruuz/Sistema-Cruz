@@ -31,11 +31,12 @@ export default function TelaRelatorio() {
   const carregar = useCallback(async () => {
     setCarregando(true)
     try {
-      const [r, s] = await Promise.all([relatorioApi.listar(), servicoApi.listar()])
-      setRelatorios(r)
-      setServicos(s)
-    } catch (e) {
-      toast.erro(e.message)
+      // allSettled: falha ao listar serviços não impede a lista de relatórios (e vice-versa)
+      const [r, s] = await Promise.allSettled([relatorioApi.listar(), servicoApi.listar()])
+      if (r.status === 'fulfilled') setRelatorios(r.value)
+      else toast.erro('Erro ao carregar relatórios: ' + r.reason.message)
+      if (s.status === 'fulfilled') setServicos(s.value)
+      else toast.erro('Erro ao carregar serviços: ' + s.reason.message)
     } finally {
       setCarregando(false)
     }
@@ -68,10 +69,12 @@ export default function TelaRelatorio() {
 
     setLoading(true)
     try {
-      await relatorioApi.gerar({
+      const novo = await relatorioApi.gerar({
         idServico: Number(form.idServico),
-        descricao: form.descricao,
+        descricao: form.descricao.trim(),
       })
+      // Mostra o novo relatório imediatamente e sincroniza com o backend
+      if (novo) setRelatorios(prev => [...prev.filter(r => r.idRelatorio !== novo.idRelatorio), novo])
       toast.sucesso('Relatório gerado com sucesso.')
       setModalGerar(false)
       carregar()
@@ -80,6 +83,19 @@ export default function TelaRelatorio() {
       else toast.erro(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // --- PDF: baixa via blob e trata erro do backend ---
+  const [baixando, setBaixando] = useState(null)
+  async function handleExportarPdf(id) {
+    setBaixando(id)
+    try {
+      await relatorioApi.exportarPdf(id)
+    } catch (e) {
+      toast.erro(e.message)
+    } finally {
+      setBaixando(null)
     }
   }
 
@@ -168,9 +184,12 @@ export default function TelaRelatorio() {
                 </button>
                 <button
                   className="btn-primary py-1.5 px-3 text-xs"
-                  onClick={() => relatorioApi.exportarPdf(r.idRelatorio)}
+                  onClick={() => handleExportarPdf(r.idRelatorio)}
+                  disabled={baixando === r.idRelatorio}
                 >
-                  <i className="bi bi-file-earmark-pdf"></i> PDF
+                  {baixando === r.idRelatorio
+                    ? <><i className="bi bi-arrow-clockwise animate-spin"></i> Gerando...</>
+                    : <><i className="bi bi-file-earmark-pdf"></i> PDF</>}
                 </button>
               </div>
             </div>
@@ -259,7 +278,8 @@ export default function TelaRelatorio() {
           footer={
             <button
               className="btn-primary"
-              onClick={() => relatorioApi.exportarPdf(selecionado.idRelatorio)}
+              onClick={() => handleExportarPdf(selecionado.idRelatorio)}
+              disabled={baixando === selecionado.idRelatorio}
             >
               <i className="bi bi-file-earmark-pdf"></i> Exportar PDF
             </button>

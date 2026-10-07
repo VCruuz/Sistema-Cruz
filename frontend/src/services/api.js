@@ -5,6 +5,7 @@ async function request(method, path, body) {
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store', // evita listas desatualizadas após criar/excluir
   }
   if (body !== undefined) opts.body = JSON.stringify(body)
 
@@ -23,6 +24,24 @@ async function request(method, path, body) {
   }
 
   return data
+}
+
+// --- DOWNLOAD DE ARQUIVO (PDF) via blob ---
+async function baixarArquivo(path, nomeArquivo) {
+  const res = await fetch(`${BASE}${path}`, { cache: 'no-store' })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.erro || data?.message || 'Não foi possível gerar o arquivo.')
+  }
+  const blob = await res.blob()
+  const url  = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }))
+  const link = document.createElement('a')
+  link.href = url
+  link.download = nomeArquivo
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => window.URL.revokeObjectURL(url), 1000)
 }
 
 // --- CLIENTES ---
@@ -57,7 +76,5 @@ export const relatorioApi = {
   listar:  ()    => request('GET',  '/relatorios'),
   buscar:  (id)  => request('GET',  `/relatorios/${id}`),
   gerar:   (dto) => request('POST', '/relatorios/gerar', dto),
-  exportarPdf: (id) => {
-    window.open(`${BASE}/relatorios/${id}/pdf`, '_blank')
-  },
+  exportarPdf: (id) => baixarArquivo(`/relatorios/${id}/pdf`, `relatorio-${id}.pdf`),
 }

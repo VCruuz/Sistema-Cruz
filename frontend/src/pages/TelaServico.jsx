@@ -42,17 +42,17 @@ export default function TelaServico() {
   const [form,           setForm]           = useState(FORM_VAZIO)
   const [errosForm,      setErrosForm]      = useState({})
   const [loading,        setLoading]        = useState(false)
-  const [loadingExcluir, setLoadingExcluir] = useState(false)
 
   // --- Carrega serviços + clientes na montagem da tela ---
   const carregar = useCallback(async () => {
     setCarregando(true)
     try {
-      const [s, c] = await Promise.all([servicoApi.listar(), clienteApi.listar()])
-      setServicos(s)
-      setClientes(c)
-    } catch (e) {
-      toast.erro(e.message)
+      // allSettled: falha em uma lista não impede a outra de atualizar
+      const [s, c] = await Promise.allSettled([servicoApi.listar(), clienteApi.listar()])
+      if (s.status === 'fulfilled') setServicos(s.value)
+      else toast.erro('Erro ao carregar serviços: ' + s.reason.message)
+      if (c.status === 'fulfilled') setClientes(c.value)
+      else toast.erro('Erro ao carregar clientes: ' + c.reason.message)
     } finally {
       setCarregando(false)
     }
@@ -112,16 +112,18 @@ export default function TelaServico() {
   }
 
   async function handleExcluirConfirmado() {
-    setLoadingExcluir(true)
+    const idExcluido = confirmExcluir
+    setConfirmExcluir(null) // fecha a confirmação imediatamente
     try {
-      await servicoApi.excluir(confirmExcluir)
+      await servicoApi.excluir(idExcluido)
+      // Atualiza o estado local na hora: remove o serviço e desvincula os derivados dele
+      setServicos(prev => prev
+        .filter(s => s.idServico !== idExcluido)
+        .map(s => s.servicoOrigem?.idServico === idExcluido ? { ...s, servicoOrigem: null } : s))
       toast.sucesso('Serviço excluído.')
-      setConfirmExcluir(null)
-      carregar()
+      carregar() // sincroniza com o backend
     } catch (e) {
       toast.erro(e.message)
-    } finally {
-      setLoadingExcluir(false)
     }
   }
 
@@ -169,17 +171,37 @@ export default function TelaServico() {
                   Nenhum serviço cadastrado.
                 </td></tr>
               ) : servicos.map(s => (
-                <tr key={s.idServico} className="hover:bg-slate-50 transition-colors">
+                <tr
+                  key={s.idServico}
+                  className={`transition-colors ${s.servicoOrigem
+                    ? 'bg-violet-50/60 hover:bg-violet-50 shadow-[inset_3px_0_0_0_#8b5cf6]'
+                    : 'hover:bg-slate-50'}`}
+                >
                   <td className="px-4 py-3 text-slate-400 font-mono text-xs">{s.idServico}</td>
-                  <td className="px-4 py-3 font-medium text-slate-800 max-w-[160px] truncate" title={s.tipoServico}>{s.tipoServico}</td>
+                  <td className="px-4 py-3 max-w-[180px]">
+                    <p className="font-medium text-slate-800 truncate" title={s.tipoServico}>{s.tipoServico}</p>
+                    {s.servicoOrigem && (
+                      <span className="badge bg-violet-100 text-violet-700 border border-violet-200 mt-1">
+                        <i className="bi bi-arrow-repeat mr-1"></i>Recorrente
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{s.cliente?.nome || '—'}</td>
                   <td className="px-4 py-3"><BadgeStatus status={s.status} /></td>
                   <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{s.dataServico || '—'}</td>
                   <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{s.dataCriado || '—'}</td>
                   <td className="px-4 py-3">
                     {s.servicoOrigem
-                      ? <span className="badge bg-violet-100 text-violet-700 border border-violet-200">#{s.servicoOrigem.idServico}</span>
-                      : <span className="text-slate-300 text-xs">—</span>}
+                      ? (
+                        <span
+                          className="badge bg-violet-100 text-violet-700 border border-violet-200 whitespace-nowrap"
+                          title={`Recorrente — gerado a partir do serviço #${s.servicoOrigem.idServico}`
+                            + (s.servicoOrigem.dataServico ? ` (${s.servicoOrigem.dataServico})` : '')}
+                        >
+                          <i className="bi bi-link-45deg mr-0.5"></i>Gerado de #{s.servicoOrigem.idServico}
+                        </span>
+                      )
+                      : <span className="text-xs text-slate-400">Primário</span>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5">
@@ -321,10 +343,9 @@ export default function TelaServico() {
       {confirmExcluir && (
         <ConfirmModal
           titulo="Excluir serviço"
-          mensagem="Tem certeza que deseja excluir este serviço? Esta ação não pode ser desfeita."
+          mensagem="Tem certeza que deseja excluir este serviço? Os relatórios dele também serão excluídos e serviços gerados a partir dele perderão o vínculo. Esta ação não pode ser desfeita."
           onConfirmar={handleExcluirConfirmado}
           onCancelar={() => setConfirmExcluir(null)}
-          loading={loadingExcluir}
         />
       )}
     </>

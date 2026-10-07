@@ -50,6 +50,9 @@ public class RelatorioService {
     public byte[] exportarPdf(Long idRelatorio) throws Exception {
         Relatorio rel = selecionarRelatorio(idRelatorio);
         Servico   srv = rel.getServico();
+        if (srv == null) {
+            throw new RuntimeException("O serviço vinculado ao relatório #" + idRelatorio + " não existe mais.");
+        }
 
         Document doc = new Document(PageSize.A4, 50, 50, 70, 50);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -80,7 +83,7 @@ public class RelatorioService {
         doc.add(new Paragraph("Informações do Relatório", fSecao));
         doc.add(buildInfoTable(fLabel, fValor, cinzaClaro, new String[][]{
             {"Nº do Relatório", String.valueOf(rel.getIdRelatorio())},
-            {"Data de Geração", rel.getDataGeracao().toString()},
+            {"Data de Geração", rel.getDataGeracao() != null ? rel.getDataGeracao().toString() : "—"},
             {"Descrição",       rel.getDescricao()}
         }));
         doc.add(new Paragraph(" "));

@@ -5,9 +5,11 @@ package com.cruzengenharia.sistema.service;
 import com.cruzengenharia.sistema.dto.ServicoRequestDTO;
 import com.cruzengenharia.sistema.model.Cliente;
 import com.cruzengenharia.sistema.model.Servico;
+import com.cruzengenharia.sistema.repository.RelatorioRepository;
 import com.cruzengenharia.sistema.repository.ServicoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -17,6 +19,7 @@ import java.util.List;
 public class ServicoService {
 
     private final ServicoRepository servicoRepository;
+    private final RelatorioRepository relatorioRepository;
     private final ClienteService clienteService;
 
     // --- MÁQUINA DE ESTADOS: constantes de status ---
@@ -81,6 +84,10 @@ public class ServicoService {
 
         // Preserva data existente se o DTO não trouxer uma nova
         if (dto.getDataServico() != null) {
+            // Só valida a recorrência quando a data muda (não bloqueia edição de status de registros antigos)
+            if (!dto.getDataServico().equals(existente.getDataServico())) {
+                validarDataRecorrencia(existente.getServicoOrigem(), dto.getDataServico());
+            }
             existente.setDataServico(dto.getDataServico());
         }
 
@@ -92,6 +99,7 @@ public class ServicoService {
     public Servico remarcar(Long id, LocalDate novaData) {
         Servico servico = buscarPorId(id);
         validarTransicao(servico.getStatus(), REMARCADO);
+        validarDataRecorrencia(servico.getServicoOrigem(), novaData);
         servico.setStatus(REMARCADO);
         servico.setDataServico(novaData);
         servico.setDataUltimo(LocalDate.now());
@@ -102,6 +110,12 @@ public class ServicoService {
     public Servico gerarServicoVinculado(Long idOrigem, ServicoRequestDTO dto) {
         Servico origem  = buscarPorId(idOrigem);
         Cliente cliente = origem.getCliente(); // herda cliente da origem
+
+        // Recorrência: data obrigatória e estritamente posterior à do serviço primário
+        if (dto.getDataServico() == null) {
+            throw new RuntimeException("Informe a data do serviço recorrente.");
+        }
+        validarDataRecorrencia(origem, dto.getDataServico());
 
         Servico novo = Servico.builder()
                 .cliente(cliente)
@@ -117,12 +131,29 @@ public class ServicoService {
         return servicoRepository.save(novo);
     }
 
+    // --- EXCLUIR: remove relatórios vinculados (cascata) e desvincula serviços derivados ---
+    @Transactional
     public void excluir(Long id) {
+        Servico servico = buscarPorId(id);
         try {
-            servicoRepository.deleteById(id);
+            relatorioRepository.excluirPorServico(id);
+            servicoRepository.desvincularDerivados(id);
+            servicoRepository.delete(servico);
+            servicoRepository.flush(); // força o DELETE agora para capturar violação de FK aqui
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new RuntimeException(
-                "Não é possível excluir este serviço pois ele possui relatórios ou serviços derivados vinculados."
+                "Não é possível excluir este serviço pois ele possui registros vinculados."
+            );
+        }
+    }
+
+    // --- RECORRÊNCIA: serviço derivado só pode ocorrer após a data do serviço primário ---
+    private void validarDataRecorrencia(Servico origem, LocalDate data) {
+        if (origem == null || origem.getDataServico() == null || data == null) return;
+        if (!data.isAfter(origem.getDataServico())) {
+            throw new RuntimeException(
+                "A data do serviço recorrente deve ser posterior à data do serviço de origem #"
+                + origem.getIdServico() + " (" + origem.getDataServico() + ")."
             );
         }
     }
