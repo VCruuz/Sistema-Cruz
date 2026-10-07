@@ -5,6 +5,8 @@ package com.cruzengenharia.sistema.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 import java.time.LocalDate;
 
 @Entity
@@ -22,6 +24,9 @@ public class Servico {
     // --- VÍNCULO OBRIGATÓRIO COM CLIENTE ---
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_cliente", nullable = false)
+    // Registros antigos gravados com id_cliente = 0 (bug anterior) não derrubam a listagem
+    // com "Unable to find Cliente with id 0" — o cliente inexistente vira null.
+    @NotFound(action = NotFoundAction.IGNORE)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Cliente cliente;
 

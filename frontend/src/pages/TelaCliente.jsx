@@ -177,25 +177,24 @@ export default function TelaCliente() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-verde-900 text-white">
-                {['#', 'Nome', 'Telefone', 'E-mail', 'Endereço', 'Ações'].map(h => (
+                {['Nome', 'Telefone', 'E-mail', 'Endereço', 'Ações'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {carregando ? (
-                <tr><td colSpan={6} className="text-center py-12 text-slate-400">
+                <tr><td colSpan={5} className="text-center py-12 text-slate-400">
                   <i className="bi bi-arrow-clockwise animate-spin text-2xl block mb-2"></i>
                   Carregando...
                 </td></tr>
               ) : clientes.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-12 text-slate-400">
+                <tr><td colSpan={5} className="text-center py-12 text-slate-400">
                   <i className="bi bi-people text-3xl block mb-2 opacity-30"></i>
                   Nenhum cliente cadastrado.
                 </td></tr>
               ) : clientes.map(c => (
                 <tr key={c.idCliente} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 text-slate-400 font-mono text-xs">{c.idCliente}</td>
                   <td className="px-4 py-3 font-medium text-slate-800">{c.nome}</td>
                   <td className="px-4 py-3 text-slate-600">{c.telefone}</td>
                   <td className="px-4 py-3 text-slate-600">{c.email}</td>
