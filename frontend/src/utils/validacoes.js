@@ -24,6 +24,21 @@ export function dataMinima() {
   return new Date().toISOString().split('T')[0]
 }
 
+// Dia seguinte a uma data "YYYY-MM-DD" (cálculo em UTC para não sofrer com fuso)
+export function diaSeguinte(data) {
+  if (!data) return ''
+  const d = new Date(`${data}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().split('T')[0]
+}
+
+// Data mínima para um serviço recorrente: dia seguinte ao serviço de origem (nunca antes de hoje)
+export function dataMinimaRecorrencia(dataOrigem) {
+  const hoje = dataMinima()
+  const apos = diaSeguinte(dataOrigem)
+  return apos && apos > hoje ? apos : hoje
+}
+
 // Tipos de serviço predefinidos
 export const TIPOS_SERVICO = [
   'Laudo Técnico',

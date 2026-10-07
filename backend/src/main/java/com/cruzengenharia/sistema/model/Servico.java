@@ -33,6 +33,8 @@ public class Servico {
     // --- SERVIÇO DE ORIGEM: vínculo com serviço derivado (opcional) ---
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_servico_origem")
+    // Origem apagada não derruba a listagem com "Unable to find Servico with id X"
+    @NotFound(action = NotFoundAction.IGNORE)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "cliente", "servicoOrigem"})
     private Servico servicoOrigem;
 

@@ -4,7 +4,7 @@ import Modal from './Modal'
 import BadgeStatus from './BadgeStatus'
 import { servicoApi } from '../services/api'
 import { useToast } from '../context/ToastContext'
-import { TIPOS_SERVICO, dataMinima } from '../utils/validacoes'
+import { TIPOS_SERVICO, dataMinima, dataMinimaRecorrencia } from '../utils/validacoes'
 
 // --- MÁQUINA DE ESTADOS: transições válidas por status ---
 const TRANSICOES = {
@@ -50,6 +50,12 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
 
   const statusDisponiveis = TRANSICOES[servico.status] ?? []
 
+  // Recorrência: este serviço (se derivado) só pode ocorrer após o de origem;
+  // um novo derivado deste só pode ocorrer após a data deste
+  const origem          = servico.servicoOrigem
+  const minDataEste     = origem ? dataMinimaRecorrencia(origem.dataServico) : hoje
+  const minDataDerivado = dataMinimaRecorrencia(servico.dataServico)
+
   // Monta o DTO para o backend — converte string vazia de data para null
   function montarDTO(f) {
     return {
@@ -64,6 +70,11 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   // --- ABA EDITAR: atualiza dados + status ---
   async function handleEditar() {
     if (!formEditar.tipoServico) { toast.aviso('Selecione o tipo de serviço.'); return }
+    if (origem && formEditar.dataServico && formEditar.dataServico !== inicial.dataServico
+        && formEditar.dataServico < minDataEste) {
+      toast.aviso(`Serviço recorrente: a data deve ser posterior à do serviço de origem #${origem.idServico}.`)
+      return
+    }
     setLoading(true)
     try {
       const atualizado = await servicoApi.editar(servico.idServico, montarDTO(formEditar))
@@ -82,6 +93,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   // --- ABA REMARCAR: Concluído → Remarcado + nova data ---
   async function handleRemarcar() {
     if (!novaData) { toast.aviso('Informe a nova data.'); return }
+    if (novaData < minDataEste) { toast.aviso(`A data deve ser a partir de ${minDataEste}.`); return }
     setLoading(true)
     try {
       const atualizado = await servicoApi.remarcar(servico.idServico, novaData)
@@ -99,6 +111,10 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   async function handleVinculado() {
     if (!formVinculado.tipoServico) { toast.aviso('Selecione o tipo do novo serviço.'); return }
     if (!formVinculado.dataServico) { toast.aviso('Informe a data do novo serviço.');   return }
+    if (formVinculado.dataServico < minDataDerivado) {
+      toast.aviso(`A data do serviço recorrente deve ser posterior a ${servico.dataServico}.`)
+      return
+    }
     setLoading(true)
     try {
       await servicoApi.gerarVinculado(servico.idServico, {
@@ -131,6 +147,12 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
             <span><i className="bi bi-person mr-1"></i>{servico.cliente?.nome ?? '—'}</span>
             {servico.dataServico && (
               <span><i className="bi bi-calendar3 mr-1"></i>{servico.dataServico}</span>
+            )}
+            {origem && (
+              <span className="badge bg-violet-100 text-violet-700 border border-violet-200">
+                <i className="bi bi-link-45deg mr-0.5"></i>Recorrente — gerado de #{origem.idServico}
+                {origem.dataServico ? ` (${origem.dataServico})` : ''}
+              </span>
             )}
           </div>
         </div>
@@ -186,7 +208,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
             <input
               type="date"
               className="input-field"
-              min={hoje}
+              min={minDataEste}
               value={formEditar.dataServico}
               onChange={e => setFormEditar(f => ({ ...f, dataServico: e.target.value }))}
             />
@@ -235,7 +257,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
             <input
               type="date"
               className="input-field"
-              min={hoje}
+              min={minDataEste}
               value={novaData}
               onChange={e => setNovaData(e.target.value)}
             />
@@ -294,10 +316,15 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
             <input
               type="date"
               className="input-field"
-              min={hoje}
+              min={minDataDerivado}
               value={formVinculado.dataServico}
               onChange={e => setFormVinculado(f => ({ ...f, dataServico: e.target.value }))}
             />
+            {servico.dataServico && (
+              <p className="text-xs text-slate-400 mt-1">
+                Deve ser posterior à data deste serviço ({servico.dataServico}).
+              </p>
+            )}
           </div>
 
           <button className="btn-primary" onClick={handleVinculado} disabled={loading}>
