@@ -10,10 +10,19 @@ import { TIPOS_SERVICO, dataMinima } from '../utils/validacoes'
 
 const FORM_VAZIO = { idCliente: '', tipoServico: '', descricao: '', dataServico: '' }
 
+// Extrai o ID real do cliente (backend serializa como idCliente; aceita "id" por segurança)
+const idDoCliente = c => c?.idCliente ?? c?.id
+
+// Converte o valor do <select> para um ID numérico válido (> 0) ou null
+function idClienteValido(valor) {
+  const n = Number(valor)
+  return Number.isInteger(n) && n > 0 ? n : null
+}
+
 function validarForm(form) {
   const e = {}
   // Verifica string vazia OU número 0 (Number('') === 0)
-  if (!form.idCliente || Number(form.idCliente) <= 0) e.idCliente = 'Selecione um cliente.'
+  if (!idClienteValido(form.idCliente)) e.idCliente = 'Selecione um cliente.'
   if (!form.tipoServico) e.tipoServico = 'Selecione o tipo de serviço.'
   if (!form.dataServico) e.dataServico = 'Data é obrigatória.'
   return e
@@ -79,9 +88,9 @@ export default function TelaServico() {
 
     setLoading(true)
     try {
-      const idClienteNum = Number(form.idCliente)
+      const idClienteNum = idClienteValido(form.idCliente)
       // Última guarda: impede envio se id inválido mesmo após validação
-      if (!idClienteNum || idClienteNum <= 0) {
+      if (!idClienteNum) {
         setErrosForm(er => ({ ...er, idCliente: 'Selecione um cliente válido.' }))
         return
       }
@@ -208,7 +217,11 @@ export default function TelaServico() {
           footer={
             <>
               <button className="btn-secondary" onClick={() => setModalCriar(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={handleCriar} disabled={loading}>
+              <button
+                className="btn-primary"
+                onClick={handleCriar}
+                disabled={loading || carregandoClientes || !idClienteValido(form.idCliente)}
+              >
                 {loading
                   ? <><i className="bi bi-arrow-clockwise animate-spin"></i> Salvando...</>
                   : 'Cadastrar'
@@ -231,8 +244,8 @@ export default function TelaServico() {
                 <option value="">
                   {carregandoClientes ? 'Carregando clientes...' : '— Selecione o cliente —'}
                 </option>
-                {clientes.map(c => (
-                  <option key={c.idCliente} value={String(c.idCliente)}>
+                {clientes.filter(c => idClienteValido(idDoCliente(c))).map(c => (
+                  <option key={idDoCliente(c)} value={String(idDoCliente(c))}>
                     {c.nome}
                   </option>
                 ))}

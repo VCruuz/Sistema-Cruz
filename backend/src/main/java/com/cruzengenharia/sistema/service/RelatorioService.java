@@ -3,6 +3,7 @@ package com.cruzengenharia.sistema.service;
 // --- SERVICE: RELATÓRIO + GERAÇÃO DE PDF (iText 5) ---
 
 import com.cruzengenharia.sistema.dto.RelatorioRequestDTO;
+import com.cruzengenharia.sistema.model.Cliente;
 import com.cruzengenharia.sistema.model.Relatorio;
 import com.cruzengenharia.sistema.model.Servico;
 import com.cruzengenharia.sistema.repository.RelatorioRepository;
@@ -86,11 +87,13 @@ public class RelatorioService {
 
         // --- SEÇÃO: DADOS DO CLIENTE ---
         doc.add(new Paragraph("Dados do Cliente", fSecao));
+        // Cliente pode ser null em registros antigos órfãos (ver @NotFound em Servico)
+        Cliente cli = srv.getCliente() != null ? srv.getCliente() : new Cliente();
         doc.add(buildInfoTable(fLabel, fValor, cinzaClaro, new String[][]{
-            {"Nome",      srv.getCliente().getNome()},
-            {"Telefone",  srv.getCliente().getTelefone()},
-            {"E-mail",    srv.getCliente().getEmail()},
-            {"Endereço",  srv.getCliente().getEndereco()}
+            {"Nome",      cli.getNome()},
+            {"Telefone",  cli.getTelefone()},
+            {"E-mail",    cli.getEmail()},
+            {"Endereço",  cli.getEndereco()}
         }));
         doc.add(new Paragraph(" "));
 
@@ -125,7 +128,7 @@ public class RelatorioService {
             cLabel.setPadding(5);
             cLabel.setBorderColor(BaseColor.LIGHT_GRAY);
 
-            PdfPCell cValor = new PdfPCell(new Phrase(row[1], fValor));
+            PdfPCell cValor = new PdfPCell(new Phrase(row[1] != null ? row[1] : "—", fValor));
             cValor.setBackgroundColor(cor);
             cValor.setPadding(5);
             cValor.setBorderColor(BaseColor.LIGHT_GRAY);

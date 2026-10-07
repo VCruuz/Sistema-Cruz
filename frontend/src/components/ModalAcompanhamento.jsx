@@ -102,7 +102,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
     setLoading(true)
     try {
       await servicoApi.gerarVinculado(servico.idServico, {
-        idCliente:   servico.cliente.idCliente,
+        idCliente:   servico.cliente?.idCliente,
         tipoServico: formVinculado.tipoServico,
         descricao:   formVinculado.descricao || null,
         dataServico: formVinculado.dataServico,
