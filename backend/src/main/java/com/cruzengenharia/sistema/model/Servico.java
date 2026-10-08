@@ -36,7 +36,8 @@ public class Servico {
     @JoinColumn(name = "id_servico_origem")
     // Origem apagada não derruba a listagem com "Unable to find Servico with id X"
     @NotFound(action = NotFoundAction.IGNORE)
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "cliente", "servicoOrigem"})
+    // Inclui o cliente da origem (usado no texto "Gerado a partir de: ..."); evita aninhar a origem da origem
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "servicoOrigem"})
     private Servico servicoOrigem;
 
     // --- TIPO PREDEFINIDO ---

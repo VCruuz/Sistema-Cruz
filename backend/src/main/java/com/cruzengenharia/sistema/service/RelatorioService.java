@@ -47,8 +47,12 @@ public class RelatorioService {
     // --- GERAR RELATÓRIO VINCULADO A UM SERVIÇO ---
     public Relatorio gerarRelatorio(RelatorioRequestDTO dto) {
         Servico servico = servicoService.buscarPorId(dto.getIdServico());
-        if ("Cancelado".equals(servico.getStatus())) {
-            throw new RuntimeException("Não é possível gerar relatório para um serviço Cancelado.");
+        // Regra estrita: relatório só para serviço Concluído
+        if (!"Concluído".equals(servico.getStatus())) {
+            throw new RuntimeException(
+                "Só é possível gerar relatório para serviços Concluídos (status atual: '"
+                + servico.getStatus() + "')."
+            );
         }
 
         Relatorio relatorio = Relatorio.builder()

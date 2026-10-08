@@ -25,6 +25,14 @@ function idClienteValido(valor) {
   return Number.isInteger(n) && n > 0 ? n : null
 }
 
+// "Gerado a partir de: [Serviço de Origem] / [Cliente] / [Data de Início]"
+function textoOrigem(origem) {
+  const servico = origem?.tipoServico || 'Serviço não informado'
+  const cliente = origem?.cliente?.nome || 'Cliente não informado'
+  const data    = origem?.dataInicio ? formatarData(origem.dataInicio) : 'Data não informada'
+  return `Gerado a partir de: ${servico} / ${cliente} / ${data}`
+}
+
 function validarForm(form) {
   const e = {}
   // Verifica string vazia OU número 0 (Number('') === 0)
@@ -220,12 +228,11 @@ export default function TelaServico() {
                     {s.servicoOrigem
                       ? (
                         <span
-                          className="badge bg-violet-100 text-violet-700 border border-violet-200 whitespace-nowrap"
-                          title={`Recorrente — gerado a partir de: ${s.servicoOrigem.tipoServico ?? 'serviço de origem'}`
-                            + (s.servicoOrigem.dataInicio ? ` (${formatarData(s.servicoOrigem.dataInicio)})` : '')}
+                          className="badge bg-violet-100 text-violet-700 border border-violet-200 whitespace-normal text-left leading-snug max-w-[280px]"
+                          title={textoOrigem(s.servicoOrigem)}
                         >
                           <i className="bi bi-link-45deg mr-0.5"></i>
-                          Gerado após {s.servicoOrigem.dataInicio ? formatarData(s.servicoOrigem.dataInicio) : 'serviço de origem'}
+                          {textoOrigem(s.servicoOrigem)}
                         </span>
                       )
                       : <span className="text-xs text-slate-500 font-medium">Primário</span>}
@@ -238,7 +245,7 @@ export default function TelaServico() {
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5">
                       {servicoFinalizado(s) ? (
-                        // Concluído / Cancelado: somente visualização, sem edição ou remoção
+                        // Concluído / Cancelado: somente visualização (sem edição/status), mas pode excluir
                         <button
                           className="btn-ghost py-1.5 px-2.5 text-xs"
                           onClick={() => abrirAcompanhamento(s.idServico)}
@@ -246,21 +253,20 @@ export default function TelaServico() {
                           <i className="bi bi-eye"></i> Visualizar
                         </button>
                       ) : (
-                        <>
-                          <button
-                            className="btn-primary py-1.5 px-2.5 text-xs"
-                            onClick={() => abrirAcompanhamento(s.idServico)}
-                          >
-                            <i className="bi bi-search"></i> Acompanhar
-                          </button>
-                          <button
-                            className="btn-danger py-1.5 px-2.5 text-xs"
-                            onClick={() => setConfirmExcluir(s.idServico)}
-                          >
-                            <i className="bi bi-trash"></i>
-                          </button>
-                        </>
+                        <button
+                          className="btn-primary py-1.5 px-2.5 text-xs"
+                          onClick={() => abrirAcompanhamento(s.idServico)}
+                        >
+                          <i className="bi bi-search"></i> Acompanhar
+                        </button>
                       )}
+                      <button
+                        className="btn-danger py-1.5 px-2.5 text-xs"
+                        onClick={() => setConfirmExcluir(s.idServico)}
+                        title="Excluir serviço"
+                      >
+                        <i className="bi bi-trash"></i>
+                      </button>
                     </div>
                   </td>
                 </tr>
