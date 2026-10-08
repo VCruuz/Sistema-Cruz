@@ -26,4 +26,8 @@ public interface ServicoRepository extends JpaRepository<Servico, Long> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = "DELETE FROM servicos WHERE id_servico = :id", nativeQuery = true)
     int excluirPorIdNativo(@Param("id") Long id);
+
+    // --- Status via SQL puro (usado na exclusão, sem carregar a entidade) ---
+    @Query(value = "SELECT status FROM servicos WHERE id_servico = :id", nativeQuery = true)
+    String buscarStatus(@Param("id") Long id);
 }

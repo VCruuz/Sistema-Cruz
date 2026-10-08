@@ -137,6 +137,10 @@ export default function TelaRelatorio() {
 
   // Serviço selecionado no form (para exibir contexto)
   const servicoNoForm = servicos.find(s => String(s.idServico) === String(form.idServico))
+  const servicoCancelado = servicoNoForm?.status === 'Cancelado'
+  // Serviços cancelados não podem receber relatório
+  const servicosDisponiveis = servicos.filter(s => s.status !== 'Cancelado')
+  const qtdCancelados = servicos.length - servicosDisponiveis.length
 
   return (
     <>
@@ -176,9 +180,13 @@ export default function TelaRelatorio() {
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-800">
-                    Relatório{r.servico?.tipoServico ? ` · ${r.servico.tipoServico}` : ''}
+                    {/* Serviço excluído: usa os dados registrados na geração do relatório */}
+                    {(() => {
+                      const tipo = r.servico?.tipoServico ?? r.servicoTipo
+                      return `Relatório${tipo ? ` · ${tipo}` : ''}`
+                    })()}
                     <span className="font-normal text-slate-500">
-                      {' - Cliente: '}{r.servico?.cliente?.nome || 'Cliente não informado'}
+                      {' - Cliente: '}{r.servico?.cliente?.nome || r.clienteNome || 'Cliente não informado'}
                     </span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5 truncate">
@@ -189,11 +197,13 @@ export default function TelaRelatorio() {
                       <i className="bi bi-calendar3 mr-1"></i>
                       {r.dataGeracao}
                     </span>
-                    {r.servico && (
-                      <>
-                        <BadgeStatus status={r.servico.status} />
-                      </>
-                    )}
+                    {r.servico
+                      ? <BadgeStatus status={r.servico.status} />
+                      : (
+                        <span className="badge bg-slate-100 text-slate-500 border border-slate-200">
+                          <i className="bi bi-link-45deg mr-0.5"></i>Serviço excluído
+                        </span>
+                      )}
                   </div>
                 </div>
               </div>
@@ -234,7 +244,12 @@ export default function TelaRelatorio() {
           footer={
             <>
               <button className="btn-secondary" onClick={() => setModalGerar(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={handleGerar} disabled={loading}>
+              <button
+                className="btn-primary"
+                onClick={handleGerar}
+                disabled={loading || servicoCancelado}
+                title={servicoCancelado ? 'Não é possível gerar relatório para serviço cancelado' : ''}
+              >
                 {loading
                   ? <><i className="bi bi-arrow-clockwise animate-spin"></i> Gerando...</>
                   : <><i className="bi bi-file-earmark-plus"></i> Gerar</>
@@ -254,14 +269,22 @@ export default function TelaRelatorio() {
                 onChange={e => handleChange('idServico', e.target.value)}
               >
                 <option value="">— Selecione o serviço —</option>
-                {servicos.map(s => (
+                {servicosDisponiveis.map(s => (
                   <option key={s.idServico} value={s.idServico}>
-                    {s.tipoServico} — {s.cliente?.nome || '?'}{s.dataInicio ? ` (${formatarData(s.dataInicio)})` : ''}
+                    Cliente: {s.cliente?.nome || 'não informado'} — {s.tipoServico}
+                    {s.dataInicio ? ` (${formatarData(s.dataInicio)})` : ''} · {s.status}
                   </option>
                 ))}
               </select>
+              {qtdCancelados > 0 && (
+                <p className="text-xs text-slate-400 mt-1">
+                  <i className="bi bi-info-circle mr-1"></i>
+                  {qtdCancelados} serviço{qtdCancelados !== 1 ? 's' : ''} cancelado{qtdCancelados !== 1 ? 's' : ''} não
+                  {qtdCancelados !== 1 ? ' aparecem' : ' aparece'}: não é possível gerar relatório para serviço cancelado.
+                </p>
+              )}
               {errosForm.idServico && <p className="form-error">{errosForm.idServico}</p>}
-              {!carregando && servicos.length === 0 && (
+              {!carregando && servicosDisponiveis.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
                   <i className="bi bi-exclamation-triangle mr-1"></i>
                   Nenhum serviço encontrado. Cadastre um serviço primeiro.
@@ -272,7 +295,7 @@ export default function TelaRelatorio() {
             {/* Contexto do serviço selecionado */}
             {servicoNoForm && (
               <div className="rounded-lg bg-verde-50 border border-verde-200 px-3 py-2.5 text-xs text-verde-900 space-y-1">
-                <p><strong>Cliente:</strong> {servicoNoForm.cliente?.nome}</p>
+                <p><strong>Cliente:</strong> {servicoNoForm.cliente?.nome || 'Cliente não informado'}</p>
                 <p><strong>Tipo:</strong> {servicoNoForm.tipoServico}</p>
                 <p><strong>Status:</strong> {servicoNoForm.status}</p>
               </div>
@@ -333,6 +356,31 @@ export default function TelaRelatorio() {
                 </div>
               </div>
             </section>
+
+            {/* Serviço excluído: exibe os dados registrados na geração */}
+            {!selecionado.servico && (
+              <>
+                <hr className="border-slate-100" />
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
+                    Serviço Vinculado <span className="normal-case font-normal">(excluído — dados registrados)</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      ['Tipo',           selecionado.servicoTipo || '—'],
+                      ['Cliente',        selecionado.clienteNome || 'Cliente não informado'],
+                      ['Data de Início', formatarData(selecionado.servicoDataInicio)],
+                      ['Preço',          formatarReais(selecionado.servicoPreco)],
+                    ].map(([lbl, val]) => (
+                      <div key={lbl} className="flex flex-col gap-0.5">
+                        <span className="text-xs text-slate-400">{lbl}</span>
+                        <span className="text-sm font-medium text-slate-800">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </>
+            )}
 
             {/* Dados do serviço */}
             {selecionado.servico && (

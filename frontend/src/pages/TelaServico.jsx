@@ -9,6 +9,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import InputMoeda from '../components/InputMoeda'
 import {
   TIPOS_SERVICO, dataMinima, formatarReais, formatarData, precoValido, ordenarHierarquia,
+  servicoFinalizado,
 } from '../utils/validacoes'
 
 const FORM_VAZIO = {
@@ -215,6 +216,7 @@ export default function TelaServico() {
                   <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatarData(s.dataInicio)}</td>
                   <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatarData(s.prazoEntrega)}</td>
                   <td className="px-4 py-3">
+                    <div className="flex flex-col items-start gap-1">
                     {s.servicoOrigem
                       ? (
                         <span
@@ -226,22 +228,39 @@ export default function TelaServico() {
                           Gerado após {s.servicoOrigem.dataInicio ? formatarData(s.servicoOrigem.dataInicio) : 'serviço de origem'}
                         </span>
                       )
-                      : <span className="text-xs text-slate-400">Primário</span>}
+                      : <span className="text-xs text-slate-500 font-medium">Primário</span>}
+                    {/* Data em que a marcação/agendamento foi registrada no sistema */}
+                    <span className="text-xs text-slate-400 whitespace-nowrap" title="Data de registro da marcação no sistema">
+                      <i className="bi bi-calendar-plus mr-1"></i>Marcado em {formatarData(s.dataCriado)}
+                    </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1.5">
-                      <button
-                        className="btn-primary py-1.5 px-2.5 text-xs"
-                        onClick={() => abrirAcompanhamento(s.idServico)}
-                      >
-                        <i className="bi bi-search"></i> Acompanhar
-                      </button>
-                      <button
-                        className="btn-danger py-1.5 px-2.5 text-xs"
-                        onClick={() => setConfirmExcluir(s.idServico)}
-                      >
-                        <i className="bi bi-trash"></i>
-                      </button>
+                      {servicoFinalizado(s) ? (
+                        // Concluído / Cancelado: somente visualização, sem edição ou remoção
+                        <button
+                          className="btn-ghost py-1.5 px-2.5 text-xs"
+                          onClick={() => abrirAcompanhamento(s.idServico)}
+                        >
+                          <i className="bi bi-eye"></i> Visualizar
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            className="btn-primary py-1.5 px-2.5 text-xs"
+                            onClick={() => abrirAcompanhamento(s.idServico)}
+                          >
+                            <i className="bi bi-search"></i> Acompanhar
+                          </button>
+                          <button
+                            className="btn-danger py-1.5 px-2.5 text-xs"
+                            onClick={() => setConfirmExcluir(s.idServico)}
+                          >
+                            <i className="bi bi-trash"></i>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -392,7 +411,7 @@ export default function TelaServico() {
       {confirmExcluir && (
         <ConfirmModal
           titulo="Excluir serviço"
-          mensagem="Tem certeza que deseja excluir este serviço? Os relatórios dele também serão excluídos e serviços gerados a partir dele perderão o vínculo. Esta ação não pode ser desfeita."
+          mensagem="Tem certeza que deseja excluir este serviço? Os relatórios dele serão mantidos (com os dados do serviço registrados) e serviços gerados a partir dele perderão o vínculo. Esta ação não pode ser desfeita."
           onConfirmar={handleExcluirConfirmado}
           onCancelar={() => setConfirmExcluir(null)}
         />
