@@ -28,7 +28,10 @@ public class RelatorioController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Relatorio> selecionarRelatorio(@PathVariable Long id) {
-        return ResponseEntity.ok(relatorioService.selecionarRelatorio(id));
+        // Relatório inexistente → 204 (sem corpo) em vez de erro
+        return relatorioService.selecionarRelatorio(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     // --- GERAR RELATÓRIO: POST /api/relatorios/gerar ---
@@ -40,7 +43,9 @@ public class RelatorioController {
     // --- EXPORTAR PDF: GET /api/relatorios/{id}/pdf ---
     @GetMapping("/{id}/pdf")
     public ResponseEntity<byte[]> exportarPdf(@PathVariable Long id) throws Exception {
-        byte[] pdf = relatorioService.exportarPdf(id);
+        var pdfOpt = relatorioService.exportarPdf(id);
+        if (pdfOpt.isEmpty()) return ResponseEntity.noContent().build();
+        byte[] pdf = pdfOpt.get();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=relatorio-" + id + ".pdf")
                 .contentType(MediaType.APPLICATION_PDF)

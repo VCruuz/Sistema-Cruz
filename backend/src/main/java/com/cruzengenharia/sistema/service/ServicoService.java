@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -35,11 +36,16 @@ public class ServicoService {
 
     public Servico buscarPorId(Long id) {
         return servicoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Serviço não encontrado: " + id));
+                .orElseThrow(() -> new RuntimeException("O serviço selecionado não existe mais. Atualize a lista."));
     }
 
-    public Servico acompanhar(Long id) {
-        return buscarPorId(id);
+    // --- CONSULTA TOLERANTE: serviço inexistente → Optional vazio (sem exceção) ---
+    public Optional<Servico> buscarOpcional(Long id) {
+        return id == null ? Optional.empty() : servicoRepository.findById(id);
+    }
+
+    public Optional<Servico> acompanhar(Long id) {
+        return buscarOpcional(id);
     }
 
     // --- CADASTRAR: status inicial sempre "Em Análise" ---
@@ -134,7 +140,9 @@ public class ServicoService {
     // --- EXCLUIR: remove relatórios vinculados (cascata) e desvincula serviços derivados ---
     @Transactional
     public void excluir(Long id) {
-        Servico servico = buscarPorId(id);
+        Optional<Servico> encontrado = buscarOpcional(id);
+        if (encontrado.isEmpty()) return; // já não existe: exclusão idempotente, sem erro na tela
+        Servico servico = encontrado.get();
         try {
             relatorioRepository.excluirPorServico(id);
             servicoRepository.desvincularDerivados(id);
@@ -152,8 +160,8 @@ public class ServicoService {
         if (origem == null || origem.getDataServico() == null || data == null) return;
         if (!data.isAfter(origem.getDataServico())) {
             throw new RuntimeException(
-                "A data do serviço recorrente deve ser posterior à data do serviço de origem #"
-                + origem.getIdServico() + " (" + origem.getDataServico() + ")."
+                "A data do serviço recorrente deve ser posterior à data do serviço de origem ("
+                + origem.getDataServico() + ")."
             );
         }
     }

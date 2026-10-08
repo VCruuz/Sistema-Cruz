@@ -11,7 +11,8 @@ import org.springframework.stereotype.Repository;
 public interface RelatorioRepository extends JpaRepository<Relatorio, Long> {
 
     // --- Exclusão em cascata: remove os relatórios de um serviço ---
+    // SQL nativo direto na coluna FK, sem subconsulta
     @Modifying
-    @Query("DELETE FROM Relatorio r WHERE r.servico.idServico = :idServico")
+    @Query(value = "DELETE FROM relatorios WHERE id_servico = :idServico", nativeQuery = true)
     int excluirPorServico(@Param("idServico") Long idServico);
 }

@@ -27,13 +27,18 @@ public class ServicoController {
     }
 
     @GetMapping("/{id}")
+    // Serviço inexistente → 204 (sem corpo) em vez de erro
     public ResponseEntity<Servico> buscarPorId(@PathVariable Long id) {
-        return ResponseEntity.ok(servicoService.buscarPorId(id));
+        return servicoService.buscarOpcional(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @GetMapping("/{id}/acompanhar")
     public ResponseEntity<Servico> acompanhar(@PathVariable Long id) {
-        return ResponseEntity.ok(servicoService.acompanhar(id));
+        return servicoService.acompanhar(id)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PostMapping

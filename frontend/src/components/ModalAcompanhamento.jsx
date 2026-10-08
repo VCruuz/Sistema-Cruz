@@ -72,7 +72,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
     if (!formEditar.tipoServico) { toast.aviso('Selecione o tipo de serviço.'); return }
     if (origem && formEditar.dataServico && formEditar.dataServico !== inicial.dataServico
         && formEditar.dataServico < minDataEste) {
-      toast.aviso(`Serviço recorrente: a data deve ser posterior à do serviço de origem #${origem.idServico}.`)
+      toast.aviso(`Serviço recorrente: a data deve ser posterior à do serviço de origem (${origem.dataServico}).`)
       return
     }
     setLoading(true)
@@ -134,7 +134,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   }
 
   return (
-    <Modal titulo={`Acompanhar Serviço #${servico.idServico}`} onFechar={onFechar} tamanho="lg">
+    <Modal titulo="Acompanhar Serviço" onFechar={onFechar} tamanho="lg">
 
       {/* --- RESUMO DO SERVIÇO --- */}
       <div className="rounded-xl bg-verde-50 border border-verde-200 px-4 py-3 mb-5 flex items-start justify-between gap-4">
@@ -150,7 +150,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
             )}
             {origem && (
               <span className="badge bg-violet-100 text-violet-700 border border-violet-200">
-                <i className="bi bi-link-45deg mr-0.5"></i>Recorrente — gerado de #{origem.idServico}
+                <i className="bi bi-link-45deg mr-0.5"></i>Recorrente — gerado de {origem.tipoServico ?? 'serviço de origem'}
                 {origem.dataServico ? ` (${origem.dataServico})` : ''}
               </span>
             )}

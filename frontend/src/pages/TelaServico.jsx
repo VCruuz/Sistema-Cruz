@@ -129,7 +129,14 @@ export default function TelaServico() {
 
   async function abrirAcompanhamento(id) {
     try {
-      setModalAcomp(await servicoApi.acompanhar(id))
+      const servico = await servicoApi.acompanhar(id)
+      if (!servico) {
+        // Serviço não existe mais no backend: tira da lista e sincroniza, sem erro na tela
+        setServicos(prev => prev.filter(s => s.idServico !== id))
+        carregar()
+        return
+      }
+      setModalAcomp(servico)
     } catch (e) {
       toast.erro(e.message)
     }
@@ -154,19 +161,19 @@ export default function TelaServico() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-verde-900 text-white">
-                {['#', 'Tipo', 'Cliente', 'Status', 'Data', 'Criado em', 'Origem', 'Ações'].map(h => (
+                {['Tipo', 'Cliente', 'Status', 'Data', 'Criado em', 'Origem', 'Ações'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {carregando ? (
-                <tr><td colSpan={8} className="text-center py-12 text-slate-400">
+                <tr><td colSpan={7} className="text-center py-12 text-slate-400">
                   <i className="bi bi-arrow-clockwise animate-spin text-2xl block mb-2"></i>
                   Carregando...
                 </td></tr>
               ) : servicos.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-12 text-slate-400">
+                <tr><td colSpan={7} className="text-center py-12 text-slate-400">
                   <i className="bi bi-tools text-3xl block mb-2 opacity-30"></i>
                   Nenhum serviço cadastrado.
                 </td></tr>
@@ -177,7 +184,6 @@ export default function TelaServico() {
                     ? 'bg-violet-50/60 hover:bg-violet-50 shadow-[inset_3px_0_0_0_#8b5cf6]'
                     : 'hover:bg-slate-50'}`}
                 >
-                  <td className="px-4 py-3 text-slate-400 font-mono text-xs">{s.idServico}</td>
                   <td className="px-4 py-3 max-w-[180px]">
                     <p className="font-medium text-slate-800 truncate" title={s.tipoServico}>{s.tipoServico}</p>
                     {s.servicoOrigem && (
@@ -195,10 +201,11 @@ export default function TelaServico() {
                       ? (
                         <span
                           className="badge bg-violet-100 text-violet-700 border border-violet-200 whitespace-nowrap"
-                          title={`Recorrente — gerado a partir do serviço #${s.servicoOrigem.idServico}`
+                          title={`Recorrente — gerado a partir de: ${s.servicoOrigem.tipoServico ?? 'serviço de origem'}`
                             + (s.servicoOrigem.dataServico ? ` (${s.servicoOrigem.dataServico})` : '')}
                         >
-                          <i className="bi bi-link-45deg mr-0.5"></i>Gerado de #{s.servicoOrigem.idServico}
+                          <i className="bi bi-link-45deg mr-0.5"></i>
+                          Gerado após {s.servicoOrigem.dataServico || 'serviço de origem'}
                         </span>
                       )
                       : <span className="text-xs text-slate-400">Primário</span>}
