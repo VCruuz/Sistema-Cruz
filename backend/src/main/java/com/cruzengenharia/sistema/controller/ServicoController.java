@@ -51,12 +51,14 @@ public class ServicoController {
         return ResponseEntity.ok(servicoService.editarServico(id, dto));
     }
 
-    // --- REMARCAR: PUT /api/servicos/{id}/remarcar?novaData=YYYY-MM-DD ---
+    // --- REMARCAR: PUT /api/servicos/{id}/remarcar?novaData=YYYY-MM-DD[&novoPrazo=YYYY-MM-DD] ---
+    // Em Análise (não aprovado) → Remarcado; novaData é a nova data de início (obrigatória)
     @PutMapping("/{id}/remarcar")
     public ResponseEntity<Servico> remarcar(
             @PathVariable Long id,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate novaData) {
-        return ResponseEntity.ok(servicoService.remarcar(id, novaData));
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate novaData,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate novoPrazo) {
+        return ResponseEntity.ok(servicoService.remarcar(id, novaData, novoPrazo));
     }
 
     // --- SERVIÇO VINCULADO: POST /api/servicos/{id}/vinculado ---

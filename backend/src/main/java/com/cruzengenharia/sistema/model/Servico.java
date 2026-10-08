@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
@@ -45,12 +46,21 @@ public class Servico {
     @Column(columnDefinition = "TEXT")
     private String descricao;
 
-    // @FutureOrPresent NÃO fica no model pois editarServico/remarcar não
-    // recebem o model diretamente — a validação de data fica no DTO
-    private LocalDate dataServico;
+    // --- DATAS DO SERVIÇO ---
+    // dataInicio reaproveita a coluna antiga "data_servico" para preservar os dados já cadastrados
+    @Column(name = "data_servico")
+    private LocalDate dataInicio;
+
+    // Prazo de entrega: deve ser igual ou posterior à data de início
+    @Column(name = "prazo_entrega")
+    private LocalDate prazoEntrega;
+
+    // --- PREÇO (R$): mínimo de R$ 0,01 (validado no DTO/service) ---
+    @Column(precision = 12, scale = 2)
+    private BigDecimal preco;
 
     // --- MÁQUINA DE ESTADOS ---
-    // "Em Análise" | "Em Progresso" | "Concluído" | "Cancelado" | "Remarcado"
+    // "Em Análise" | "Remarcado" | "Em Progresso" | "Concluído" | "Cancelado"
     @Column(nullable = false, length = 30)
     private String status;
 

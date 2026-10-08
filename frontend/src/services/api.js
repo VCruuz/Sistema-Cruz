@@ -62,7 +62,8 @@ export const servicoApi = {
   acompanhar:      (id)            => request('GET',    `/servicos/${id}/acompanhar`),
   criar:           (dto)           => request('POST',   '/servicos', dto),
   editar:          (id, dto)       => request('PUT',    `/servicos/${id}`, dto),
-  remarcar:        (id, novaData)  => request('PUT',    `/servicos/${id}/remarcar?novaData=${novaData}`),
+  remarcar:        (id, novaData, novoPrazo) => request('PUT',
+    `/servicos/${id}/remarcar?novaData=${novaData}${novoPrazo ? `&novoPrazo=${novoPrazo}` : ''}`),
   gerarVinculado:  (id, dto)       => request('POST',   `/servicos/${id}/vinculado`, dto),
   excluir:         (id)            => request('DELETE', `/servicos/${id}`),
 }
