@@ -93,13 +93,14 @@ public class ServicoService {
 
     // --- CADASTRAR: status inicial sempre "Em Análise" ---
     public Servico cadastrarServico(ServicoRequestDTO dto) {
-        Cliente cliente = buscarCliente(dto.getIdCliente());
+        Cliente cliente = buscarClienteAtivo(dto.getIdCliente());
         validarDataNaoRetroativa(dto.getDataInicio());
         validarPrazo(dto.getDataInicio(), dto.getPrazoEntrega());
         validarPreco(dto.getPreco());
 
         Servico servico = Servico.builder()
                 .cliente(cliente)
+                .clienteNome(cliente.getNome())
                 .tipoServico(dto.getTipoServico())
                 .descricao(dto.getDescricao())
                 .dataInicio(dto.getDataInicio())
@@ -118,7 +119,7 @@ public class ServicoService {
     public Servico editarServico(Long id, ServicoRequestDTO dto) {
         Servico existente = buscarPorId(id);
         validarNaoFinalizado(existente, "editado");
-        Cliente cliente   = buscarCliente(dto.getIdCliente());
+        Cliente cliente   = resolverClienteNaEdicao(existente, dto.getIdCliente());
         validarPreco(dto.getPreco());
 
         if (dto.getDataInicio() != null && !dto.getDataInicio().equals(existente.getDataInicio())) {
@@ -137,6 +138,7 @@ public class ServicoService {
         }
 
         existente.setCliente(cliente);
+        if (cliente != null) existente.setClienteNome(cliente.getNome());
         existente.setTipoServico(dto.getTipoServico());
         existente.setDescricao(dto.getDescricao());
         existente.setPrazoEntrega(novoPrazo);
@@ -175,6 +177,9 @@ public class ServicoService {
             throw new RuntimeException("Só é possível gerar recorrência de um serviço com status 'Em Progresso'.");
         }
         Cliente cliente = origem.getCliente(); // herda cliente da origem
+        if (cliente == null || cliente.isExcluido()) {
+            throw new RuntimeException("Não é possível gerar recorrência para um cliente excluído.");
+        }
 
         validarDataNaoRetroativa(dto.getDataInicio());
         validarDataRecorrencia(origem, dto.getDataInicio());
@@ -183,6 +188,7 @@ public class ServicoService {
 
         Servico novo = Servico.builder()
                 .cliente(cliente)
+                .clienteNome(cliente.getNome())
                 .servicoOrigem(origem)
                 .tipoServico(dto.getTipoServico())
                 .descricao(dto.getDescricao())
@@ -230,12 +236,26 @@ public class ServicoService {
         }
     }
 
-    private Cliente buscarCliente(Long idCliente) {
+    // Novo vínculo: cliente precisa existir e estar ativo
+    private Cliente buscarClienteAtivo(Long idCliente) {
         // Validação explícita do id — impede EntityNotFoundException com id 0
         if (idCliente == null || idCliente <= 0) {
             throw new RuntimeException("Selecione um cliente válido antes de salvar o serviço.");
         }
-        return clienteService.visualizarCliente(idCliente);
+        Cliente cliente = clienteService.visualizarCliente(idCliente);
+        if (cliente.isExcluido()) {
+            throw new RuntimeException("O cliente selecionado foi excluído e não pode receber serviços.");
+        }
+        return cliente;
+    }
+
+    // Edição: mantém o cliente atual (mesmo excluído/removido) se não houver troca;
+    // trocar de cliente exige um cliente ativo
+    private Cliente resolverClienteNaEdicao(Servico existente, Long idCliente) {
+        Cliente atual = existente.getCliente();
+        boolean semTroca = idCliente == null || idCliente <= 0
+                || (atual != null && idCliente.equals(atual.getIdCliente()));
+        return semTroca ? atual : buscarClienteAtivo(idCliente);
     }
 
     private void validarPreco(BigDecimal preco) {

@@ -4,7 +4,9 @@ package com.cruzengenharia.sistema.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "clientes")
@@ -40,4 +42,17 @@ public class Cliente {
     @NotBlank(message = "Endereço é obrigatório.")
     @Column(length = 255)
     private String endereco;
+
+    // --- SOFT DELETE: cliente excluído fica inativo, preservando o histórico de serviços/relatórios ---
+    // NULL (registros antigos) é tratado como ativo
+    @Builder.Default
+    @Column(columnDefinition = "BIT(1) DEFAULT 1")
+    private Boolean ativo = true;
+
+    private LocalDate dataExclusao;
+
+    @JsonIgnore
+    public boolean isExcluido() {
+        return Boolean.FALSE.equals(ativo);
+    }
 }

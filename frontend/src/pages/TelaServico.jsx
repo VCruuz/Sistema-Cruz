@@ -9,7 +9,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import InputMoeda from '../components/InputMoeda'
 import {
   TIPOS_SERVICO, dataMinima, formatarReais, formatarData, precoValido, ordenarHierarquia,
-  servicoFinalizado,
+  servicoFinalizado, clienteExcluido, nomeClienteServico,
 } from '../utils/validacoes'
 
 const FORM_VAZIO = {
@@ -28,7 +28,9 @@ function idClienteValido(valor) {
 // "Gerado a partir de: [Serviço de Origem] / [Cliente] / [Data de Início]"
 function textoOrigem(origem) {
   const servico = origem?.tipoServico || 'Serviço não informado'
-  const cliente = origem?.cliente?.nome || 'Cliente não informado'
+  const cliente = origem?.cliente || origem?.clienteNome
+    ? nomeClienteServico(origem)
+    : 'Cliente não informado'
   const data    = origem?.dataInicio ? formatarData(origem.dataInicio) : 'Data não informada'
   return `Gerado a partir de: ${servico} / ${cliente} / ${data}`
 }
@@ -218,7 +220,14 @@ export default function TelaServico() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{s.cliente?.nome || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {clienteExcluido(s) ? (
+                      <span className="text-slate-500" title="Cliente excluído — exibindo o nome registrado no histórico">
+                        {s.cliente?.nome || s.clienteNome || 'Cliente Desativado/Excluído'}
+                        <span className="badge bg-red-50 text-red-600 border border-red-200 ml-1.5">Excluído</span>
+                      </span>
+                    ) : s.cliente.nome}
+                  </td>
                   <td className="px-4 py-3"><BadgeStatus status={s.status} /></td>
                   <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">{formatarReais(s.preco)}</td>
                   <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatarData(s.dataInicio)}</td>

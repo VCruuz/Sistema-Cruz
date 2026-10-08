@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext'
 import Modal from '../components/Modal'
 import ConfirmModal from '../components/ConfirmModal'
 import BadgeStatus from '../components/BadgeStatus'
-import { formatarReais, formatarData } from '../utils/validacoes'
+import { formatarReais, formatarData, nomeClienteServico } from '../utils/validacoes'
 
 const FORM_VAZIO = { idServico: '', descricao: '' }
 
@@ -186,7 +186,7 @@ export default function TelaRelatorio() {
                       return `Relatório${tipo ? ` · ${tipo}` : ''}`
                     })()}
                     <span className="font-normal text-slate-500">
-                      {' - Cliente: '}{r.servico?.cliente?.nome || r.clienteNome || 'Cliente não informado'}
+                      {' - Cliente: '}{r.servico ? nomeClienteServico(r.servico, r.clienteNome) : (r.clienteNome || 'Cliente não informado')}
                     </span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5 truncate">
@@ -271,7 +271,7 @@ export default function TelaRelatorio() {
                 <option value="">— Selecione o serviço —</option>
                 {servicosDisponiveis.map(s => (
                   <option key={s.idServico} value={s.idServico}>
-                    Cliente: {s.cliente?.nome || 'não informado'} — {s.tipoServico}
+                    Cliente: {nomeClienteServico(s)} — {s.tipoServico}
                     {s.dataInicio ? ` (${formatarData(s.dataInicio)})` : ''}
                   </option>
                 ))}
@@ -293,7 +293,7 @@ export default function TelaRelatorio() {
             {/* Contexto do serviço selecionado */}
             {servicoNoForm && (
               <div className="rounded-lg bg-verde-50 border border-verde-200 px-3 py-2.5 text-xs text-verde-900 space-y-1">
-                <p><strong>Cliente:</strong> {servicoNoForm.cliente?.nome || 'Cliente não informado'}</p>
+                <p><strong>Cliente:</strong> {nomeClienteServico(servicoNoForm)}</p>
                 <p><strong>Tipo:</strong> {servicoNoForm.tipoServico}</p>
                 <p><strong>Status:</strong> {servicoNoForm.status}</p>
               </div>
@@ -366,7 +366,7 @@ export default function TelaRelatorio() {
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       ['Tipo',           selecionado.servicoTipo || '—'],
-                      ['Cliente',        selecionado.clienteNome || 'Cliente não informado'],
+                      ['Cliente',        selecionado.clienteNome ? `${selecionado.clienteNome} (Inativo)` : 'Cliente não informado'],
                       ['Data de Início', formatarData(selecionado.servicoDataInicio)],
                       ['Preço',          formatarReais(selecionado.servicoPreco)],
                     ].map(([lbl, val]) => (
@@ -411,18 +411,21 @@ export default function TelaRelatorio() {
                   </div>
                 </section>
 
-                {/* Dados do cliente */}
-                {selecionado.servico.cliente && (
+                {/* Dados do cliente — sempre exibidos; cliente excluído usa o nome histórico */}
+                {(() => {
+                  const cli = selecionado.servico.cliente
+                  const nd  = 'Não disponível (cliente excluído)'
+                  return (
                   <>
                     <hr className="border-slate-100" />
                     <section>
                       <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Cliente</h3>
                       <div className="grid grid-cols-2 gap-3">
                         {[
-                          ['Nome',     selecionado.servico.cliente.nome],
-                          ['Telefone', selecionado.servico.cliente.telefone],
-                          ['E-mail',   selecionado.servico.cliente.email],
-                          ['Endereço', selecionado.servico.cliente.endereco],
+                          ['Nome',     nomeClienteServico(selecionado.servico, selecionado.clienteNome)],
+                          ['Telefone', cli?.telefone || nd],
+                          ['E-mail',   cli?.email    || nd],
+                          ['Endereço', cli?.endereco || nd],
                         ].map(([lbl, val]) => (
                           <div key={lbl} className={`flex flex-col gap-0.5 ${lbl === 'Endereço' ? 'col-span-2' : ''}`}>
                             <span className="text-xs text-slate-400">{lbl}</span>
@@ -432,7 +435,8 @@ export default function TelaRelatorio() {
                       </div>
                     </section>
                   </>
-                )}
+                  )
+                })()}
               </>
             )}
           </div>
