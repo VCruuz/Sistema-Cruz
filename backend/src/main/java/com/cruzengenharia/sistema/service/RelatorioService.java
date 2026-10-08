@@ -12,6 +12,7 @@ import com.itextpdf.text.pdf.*;
 import com.itextpdf.text.pdf.draw.LineSeparator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
@@ -37,6 +38,13 @@ public class RelatorioService {
     public Optional<Relatorio> selecionarRelatorio(Long id) {
         if (id == null) return Optional.empty();
         return relatorioRepository.findById(id).filter(r -> r.getServico() != null);
+    }
+
+    // --- EXCLUIR RELATÓRIO: idempotente (relatório inexistente não gera erro) ---
+    @Transactional
+    public void excluirRelatorio(Long id) {
+        if (id == null) return;
+        relatorioRepository.excluirPorIdNativo(id);
     }
 
     // --- GERAR RELATÓRIO VINCULADO A UM SERVIÇO ---

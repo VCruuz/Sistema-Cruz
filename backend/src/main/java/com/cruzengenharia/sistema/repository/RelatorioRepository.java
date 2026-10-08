@@ -12,7 +12,12 @@ public interface RelatorioRepository extends JpaRepository<Relatorio, Long> {
 
     // --- Exclusão em cascata: remove os relatórios de um serviço ---
     // SQL nativo direto na coluna FK, sem subconsulta
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = "DELETE FROM relatorios WHERE id_servico = :idServico", nativeQuery = true)
     int excluirPorServico(@Param("idServico") Long idServico);
+
+    // --- Exclusão de um relatório pela PK (SQL nativo, sem carregar o serviço vinculado) ---
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "DELETE FROM relatorios WHERE id_relatorio = :id", nativeQuery = true)
+    int excluirPorIdNativo(@Param("id") Long id);
 }
