@@ -200,14 +200,11 @@ public class ServicoService {
     // --- EXCLUIR: tudo em SQL nativo, sem carregar a entidade e sem subconsultas na tabela servicos ---
     // 1) relatórios são PRESERVADOS: recebem os dados do serviço e são desvinculados
     // 2) desvincula os serviços filhos  3) apaga o serviço
-    // Serviços Concluídos/Cancelados são somente leitura e não podem ser excluídos.
+    // Vale para qualquer status: Concluídos/Cancelados são somente leitura para edição,
+    // mas podem ser excluídos (os relatórios já gerados continuam existindo).
     @Transactional
     public void excluir(Long id) {
         if (id == null || servicoRepository.contarPorId(id) == 0) return; // já não existe: idempotente
-        String status = servicoRepository.buscarStatus(id);
-        if (FINALIZADOS.contains(status)) {
-            throw new RuntimeException("Serviços '" + status + "' não podem ser excluídos.");
-        }
         try {
             relatorioRepository.registrarDadosDoServico(id);
             relatorioRepository.desvincularDoServico(id);

@@ -137,10 +137,10 @@ export default function TelaRelatorio() {
 
   // Serviço selecionado no form (para exibir contexto)
   const servicoNoForm = servicos.find(s => String(s.idServico) === String(form.idServico))
-  const servicoCancelado = servicoNoForm?.status === 'Cancelado'
-  // Serviços cancelados não podem receber relatório
-  const servicosDisponiveis = servicos.filter(s => s.status !== 'Cancelado')
-  const qtdCancelados = servicos.length - servicosDisponiveis.length
+  // Regra estrita: relatório só pode ser gerado para serviço "Concluído"
+  const servicoNaoConcluido = !!servicoNoForm && servicoNoForm.status !== 'Concluído'
+  const servicosDisponiveis = servicos.filter(s => s.status === 'Concluído')
+  const qtdIndisponiveis    = servicos.length - servicosDisponiveis.length
 
   return (
     <>
@@ -247,8 +247,8 @@ export default function TelaRelatorio() {
               <button
                 className="btn-primary"
                 onClick={handleGerar}
-                disabled={loading || servicoCancelado}
-                title={servicoCancelado ? 'Não é possível gerar relatório para serviço cancelado' : ''}
+                disabled={loading || servicosDisponiveis.length === 0 || servicoNaoConcluido}
+                title={servicoNaoConcluido ? 'Relatórios só podem ser gerados para serviços Concluídos' : ''}
               >
                 {loading
                   ? <><i className="bi bi-arrow-clockwise animate-spin"></i> Gerando...</>
@@ -272,22 +272,20 @@ export default function TelaRelatorio() {
                 {servicosDisponiveis.map(s => (
                   <option key={s.idServico} value={s.idServico}>
                     Cliente: {s.cliente?.nome || 'não informado'} — {s.tipoServico}
-                    {s.dataInicio ? ` (${formatarData(s.dataInicio)})` : ''} · {s.status}
+                    {s.dataInicio ? ` (${formatarData(s.dataInicio)})` : ''}
                   </option>
                 ))}
               </select>
-              {qtdCancelados > 0 && (
-                <p className="text-xs text-slate-400 mt-1">
-                  <i className="bi bi-info-circle mr-1"></i>
-                  {qtdCancelados} serviço{qtdCancelados !== 1 ? 's' : ''} cancelado{qtdCancelados !== 1 ? 's' : ''} não
-                  {qtdCancelados !== 1 ? ' aparecem' : ' aparece'}: não é possível gerar relatório para serviço cancelado.
-                </p>
-              )}
+              <p className="text-xs text-slate-400 mt-1">
+                <i className="bi bi-info-circle mr-1"></i>
+                Apenas serviços <strong>Concluídos</strong> podem receber relatório
+                {qtdIndisponiveis > 0 && ` (${qtdIndisponiveis} em outros status não ${qtdIndisponiveis !== 1 ? 'aparecem' : 'aparece'})`}.
+              </p>
               {errosForm.idServico && <p className="form-error">{errosForm.idServico}</p>}
               {!carregando && servicosDisponiveis.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
                   <i className="bi bi-exclamation-triangle mr-1"></i>
-                  Nenhum serviço encontrado. Cadastre um serviço primeiro.
+                  Nenhum serviço Concluído disponível para gerar relatório.
                 </p>
               )}
             </div>
