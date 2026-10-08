@@ -7,26 +7,30 @@ import { servicoApi } from '../services/api'
 import { useToast } from '../context/ToastContext'
 import {
   TIPOS_SERVICO, dataMinima, dataMinimaRecorrencia, formatarReais, formatarData, precoValido,
+  STATUS_FINALIZADOS,
 } from '../utils/validacoes'
 
-// --- MÁQUINA DE ESTADOS (Diagrama de Estados) ---
-// Em Análise   → Em Progresso (aprovado) | Remarcado (não aprovado) | Cancelado
+// --- MÁQUINA DE ESTADOS (Diagrama de Estados) — opções do select "Alterar Status" ---
+// Em Análise   → Em Progresso (aprovado) | Cancelado
 // Remarcado    → Em Progresso (aprovado) | Cancelado (rejeitado novamente)
 // Em Progresso → Concluído | Cancelado
-// Concluído / Cancelado → finais
+// Concluído / Cancelado → finais (somente leitura)
+// "Remarcado" nunca aparece no select: só é aplicado pelo fluxo "Remarcar" (com nova data)
 const TRANSICOES = {
-  'Em Análise':   ['Em Progresso', 'Remarcado', 'Cancelado'],
+  'Em Análise':   ['Em Progresso', 'Cancelado'],
   'Remarcado':    ['Em Progresso', 'Cancelado'],
   'Em Progresso': ['Concluído', 'Cancelado'],
   'Concluído':    [],
   'Cancelado':    [],
 }
 
+// Status em que cada aba aparece (sem a chave = sempre visível enquanto editável)
 const ABAS = [
   { id: 'editar',    label: 'Editar',            icon: 'bi-pencil' },
-  { id: 'remarcar',  label: 'Remarcar',          icon: 'bi-calendar-event' },
-  // Só aparece quando o serviço está exatamente "Em Progresso"
-  { id: 'vinculado', label: 'Gerar Recorrência', icon: 'bi-arrow-repeat', somenteStatus: 'Em Progresso' },
+  // Remarcar: pode ser repetido enquanto o serviço estiver Em Análise ou Remarcado
+  { id: 'remarcar',  label: 'Remarcar',          icon: 'bi-calendar-event', status: ['Em Análise', 'Remarcado'] },
+  // Gerar Recorrência: somente quando o serviço está exatamente "Em Progresso"
+  { id: 'vinculado', label: 'Gerar Recorrência', icon: 'bi-arrow-repeat',   status: ['Em Progresso'] },
 ]
 
 const VINCULADO_VAZIO = { tipoServico: '', descricao: '', dataInicio: '', prazoEntrega: '', preco: null }
@@ -58,8 +62,8 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   const [formVinculado, setFormVinculado] = useState(VINCULADO_VAZIO)
 
   const statusDisponiveis = TRANSICOES[servico.status] ?? []
-  const abasVisiveis      = ABAS.filter(a => !a.somenteStatus || a.somenteStatus === servico.status)
-  const podeRemarcar      = statusDisponiveis.includes('Remarcado')
+  const abasVisiveis      = ABAS.filter(a => !a.status || a.status.includes(servico.status))
+  const somenteLeitura    = STATUS_FINALIZADOS.includes(servico.status)
 
   // Se o status mudar e a aba atual deixar de existir, volta para "Editar"
   useEffect(() => {
@@ -71,8 +75,6 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   const origem          = servico.servicoOrigem
   const minDataEste     = origem ? dataMinimaRecorrencia(origem.dataInicio) : hoje
   const minDataDerivado = dataMinimaRecorrencia(servico.dataInicio)
-
-  const editandoParaRemarcado = formEditar.status === 'Remarcado' && servico.status !== 'Remarcado'
 
   // Monta o DTO para o backend
   function montarDTO(f) {
@@ -102,22 +104,9 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   async function handleEditar() {
     const f = formEditar
     if (!f.tipoServico)            { toast.aviso('Selecione o tipo de serviço.'); return }
-    if (!f.dataInicio)             { toast.aviso('Informe a data de início.'); return }
     if (!f.prazoEntrega)           { toast.aviso('Informe o prazo de entrega.'); return }
-    if (f.prazoEntrega < f.dataInicio) { toast.aviso('O prazo de entrega não pode ser anterior à data de início.'); return }
+    if (f.dataInicio && f.prazoEntrega < f.dataInicio) { toast.aviso('O prazo de entrega não pode ser anterior à data de início.'); return }
     if (!precoValido(f.preco))     { toast.aviso('Informe um preço de no mínimo R$ 0,01.'); return }
-
-    const dataMudou = f.dataInicio !== (servico.dataInicio ?? '')
-    if (editandoParaRemarcado && (!dataMudou || f.dataInicio < hoje)) {
-      toast.aviso('Para remarcar, informe uma nova data de início (diferente da atual e não retroativa).')
-      return
-    }
-    if (dataMudou && f.dataInicio < minDataEste) {
-      toast.aviso(origem
-        ? `Serviço recorrente: a data de início deve ser posterior à do serviço de origem (${formatarData(origem.dataInicio)}).`
-        : 'A data de início não pode ser retroativa.')
-      return
-    }
 
     setLoading(true)
     try {
@@ -130,7 +119,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
     }
   }
 
-  // --- ABA REMARCAR: Em Análise (não aprovado) → Remarcado + nova data de início ---
+  // --- ABA REMARCAR: Em Análise / Remarcado → Remarcado + nova data de início (repetível) ---
   async function handleRemarcar() {
     if (!novaData) { toast.aviso('Informe a nova data de início.'); return }
     if (novaData === servico.dataInicio) { toast.aviso('A nova data deve ser diferente da data atual.'); return }
@@ -213,6 +202,41 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
         <BadgeStatus status={servico.status} />
       </div>
 
+      {/* --- MODO SOMENTE LEITURA: Concluído / Cancelado --- */}
+      {somenteLeitura && (
+        <div className="space-y-4">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-sm text-slate-600">
+            <i className="bi bi-lock mr-1.5"></i>
+            Serviço <strong>{servico.status}</strong>: disponível apenas para consulta.
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              ['Tipo de Serviço',  servico.tipoServico],
+              ['Cliente',          servico.cliente?.nome ?? '—'],
+              ['Status',           servico.status],
+              ['Preço',            formatarReais(servico.preco)],
+              ['Data de Início',   formatarData(servico.dataInicio)],
+              ['Prazo de Entrega', formatarData(servico.prazoEntrega)],
+              ['Marcado em',       formatarData(servico.dataCriado)],
+              ['Última atualização', formatarData(servico.dataUltimo)],
+              ['Origem',           origem
+                ? `Recorrente — ${origem.tipoServico ?? 'serviço de origem'} (${formatarData(origem.dataInicio)})`
+                : 'Primário'],
+            ].map(([lbl, val]) => (
+              <div key={lbl} className="flex flex-col gap-0.5">
+                <span className="text-xs text-slate-400">{lbl}</span>
+                <span className="text-sm font-medium text-slate-800">{val || '—'}</span>
+              </div>
+            ))}
+            <div className="sm:col-span-2 flex flex-col gap-0.5">
+              <span className="text-xs text-slate-400">Descrição</span>
+              <span className="text-sm text-slate-800 whitespace-pre-line">{servico.descricao || '—'}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!somenteLeitura && (<>
       {/* --- ABAS --- */}
       <div className="flex gap-1 border-b border-slate-200 mb-5">
         {abasVisiveis.map(a => (
@@ -259,14 +283,19 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="form-label">Data de Início *</label>
+              <label className="form-label">Data de Início</label>
               <input
                 type="date"
-                className={`input-field ${editandoParaRemarcado ? 'ring-2 ring-amber-300' : ''}`}
-                min={minDataEste}
+                className="input-field bg-slate-50 text-slate-500 cursor-not-allowed"
                 value={formEditar.dataInicio}
-                onChange={e => setFormEditar(f => ({ ...f, dataInicio: e.target.value }))}
+                disabled
+                readOnly
               />
+              <p className="text-xs text-slate-400 mt-1">
+                {abasVisiveis.some(a => a.id === 'remarcar')
+                  ? 'Para alterar a data, use a aba Remarcar.'
+                  : 'A data de início não pode ser alterada neste status.'}
+              </p>
             </div>
             <div>
               <label className="form-label">Prazo de Entrega *</label>
@@ -306,12 +335,6 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
                 Nenhuma transição de status disponível.
               </p>
             )}
-            {editandoParaRemarcado && (
-              <p className="text-xs text-amber-700 mt-1">
-                <i className="bi bi-exclamation-circle mr-1"></i>
-                Ao remarcar, é obrigatório informar uma <strong>nova Data de Início</strong> (diferente da atual e não retroativa).
-              </p>
-            )}
           </div>
 
           <button className="btn-primary" onClick={handleEditar} disabled={loading}>
@@ -324,13 +347,14 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
       )}
 
       {/* ── ABA: REMARCAR ───────────────────────────────────────────── */}
-      {aba === 'remarcar' && (
+      {aba === 'remarcar' && abasVisiveis.some(a => a.id === 'remarcar') && (
         <div className="space-y-4">
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
             <i className="bi bi-info-circle mr-1.5"></i>
-            Para serviços <strong>Em Análise</strong> não aprovados: move o status para <strong>Remarcado</strong> e
-            exige uma nova <strong>Data de Início</strong>. Depois de remarcado, o serviço só pode ir para
-            <strong> Em Progresso</strong> (aprovado) ou <strong>Cancelado</strong>.
+            Define uma nova <strong>Data de Início</strong> e move o status para <strong>Remarcado</strong>.
+            Pode ser feito quantas vezes for necessário enquanto o serviço estiver <strong>Em Análise</strong> ou
+            <strong> Remarcado</strong>. Depois, o serviço segue para <strong>Em Progresso</strong> (aprovado) ou
+            <strong> Cancelado</strong>.
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -361,17 +385,13 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
           <button
             className="btn-primary"
             onClick={handleRemarcar}
-            disabled={loading || !podeRemarcar}
-            title={!podeRemarcar ? 'Disponível apenas para serviços Em Análise' : ''}
+            disabled={loading}
           >
             {loading
               ? <><i className="bi bi-arrow-clockwise animate-spin"></i> Remarcando...</>
               : <><i className="bi bi-calendar-check"></i> Remarcar Serviço</>
             }
           </button>
-          {!podeRemarcar && (
-            <p className="text-xs text-slate-400">Disponível apenas quando o serviço está <strong>Em Análise</strong>.</p>
-          )}
         </div>
       )}
 
@@ -450,6 +470,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
           </button>
         </div>
       )}
+      </>)}
     </Modal>
   )
 }

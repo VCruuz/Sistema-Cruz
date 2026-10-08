@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -27,17 +26,15 @@ public class RelatorioService {
     private final RelatorioRepository relatorioRepository;
     private final ServicoService servicoService;
 
-    // --- LISTAGEM: ignora relatórios cujo serviço vinculado não existe mais ---
+    // --- LISTAGEM: inclui relatórios de serviços já excluídos (usam os dados registrados) ---
     public List<Relatorio> listarTodos() {
-        return relatorioRepository.findAll().stream()
-                .filter(r -> Objects.nonNull(r.getServico()))
-                .toList();
+        return relatorioRepository.findAll();
     }
 
-    // --- CONSULTA TOLERANTE: relatório inexistente (ou órfão) → Optional vazio, sem exceção ---
+    // --- CONSULTA TOLERANTE: relatório inexistente → Optional vazio, sem exceção ---
     public Optional<Relatorio> selecionarRelatorio(Long id) {
         if (id == null) return Optional.empty();
-        return relatorioRepository.findById(id).filter(r -> r.getServico() != null);
+        return relatorioRepository.findById(id);
     }
 
     // --- EXCLUIR RELATÓRIO: idempotente (relatório inexistente não gera erro) ---
@@ -50,9 +47,17 @@ public class RelatorioService {
     // --- GERAR RELATÓRIO VINCULADO A UM SERVIÇO ---
     public Relatorio gerarRelatorio(RelatorioRequestDTO dto) {
         Servico servico = servicoService.buscarPorId(dto.getIdServico());
+        if ("Cancelado".equals(servico.getStatus())) {
+            throw new RuntimeException("Não é possível gerar relatório para um serviço Cancelado.");
+        }
 
         Relatorio relatorio = Relatorio.builder()
                 .servico(servico)
+                // Dados registrados: mantêm o relatório legível mesmo se o serviço for excluído
+                .servicoTipo(servico.getTipoServico())
+                .clienteNome(servico.getCliente() != null ? servico.getCliente().getNome() : null)
+                .servicoDataInicio(servico.getDataInicio())
+                .servicoPreco(servico.getPreco())
                 .dataGeracao(LocalDate.now())
                 .descricao(dto.getDescricao())
                 .build();
@@ -105,7 +110,10 @@ public class RelatorioService {
         // --- SEÇÃO: DADOS DO CLIENTE ---
         doc.add(new Paragraph("Dados do Cliente", fSecao));
         // Cliente pode ser null em registros antigos órfãos (ver @NotFound em Servico)
-        Cliente cli = srv.getCliente() != null ? srv.getCliente() : new Cliente();
+        // Serviço excluído: usa os dados registrados no relatório na geração
+        Cliente cli = srv != null && srv.getCliente() != null
+                ? srv.getCliente()
+                : Cliente.builder().nome(rel.getClienteNome()).build();
         doc.add(buildInfoTable(fLabel, fValor, cinzaClaro, new String[][]{
             {"Nome",      cli.getNome()},
             {"Telefone",  cli.getTelefone()},
@@ -116,7 +124,14 @@ public class RelatorioService {
 
         // --- SEÇÃO: DADOS DO SERVIÇO ---
         doc.add(new Paragraph("Dados do Serviço Vinculado", fSecao));
-        doc.add(buildInfoTable(fLabel, fValor, cinzaClaro, new String[][]{
+        if (srv == null) {
+            doc.add(buildInfoTable(fLabel, fValor, cinzaClaro, new String[][]{
+                {"Situação",       "Serviço excluído do sistema (dados registrados na geração)"},
+                {"Tipo",           rel.getServicoTipo()},
+                {"Data de Início", rel.getServicoDataInicio() != null ? rel.getServicoDataInicio().toString() : "—"},
+                {"Preço",          rel.getServicoPreco()      != null ? formatarReais(rel.getServicoPreco())  : "—"}
+            }));
+        } else doc.add(buildInfoTable(fLabel, fValor, cinzaClaro, new String[][]{
             {"Nº do Serviço",  String.valueOf(srv.getIdServico())},
             {"Tipo",           srv.getTipoServico()},
             {"Status",         srv.getStatus()},

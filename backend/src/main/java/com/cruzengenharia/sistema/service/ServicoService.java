@@ -30,15 +30,21 @@ public class ServicoService {
     private static final String CONCLUIDO    = "Concluído";
     private static final String CANCELADO    = "Cancelado";
 
+    // Status a partir dos quais o serviço pode ser remarcado (quantas vezes for preciso)
+    private static final Set<String> PODE_REMARCAR = Set.of(EM_ANALISE, REMARCADO);
+    // Status finais: serviço fica somente leitura (sem edição, remarcação ou exclusão)
+    private static final Set<String> FINALIZADOS   = Set.of(CONCLUIDO, CANCELADO);
+
     private static final BigDecimal PRECO_MINIMO = new BigDecimal("0.01");
 
-    // --- TRANSIÇÕES VÁLIDAS (Diagrama de Estados) ---
-    // Em Análise   → Em Progresso (aprovado) | Remarcado (não aprovado) | Cancelado
+    // --- TRANSIÇÕES VÁLIDAS PELA ALTERAÇÃO DE STATUS (Diagrama de Estados) ---
+    // Em Análise   → Em Progresso (aprovado) | Cancelado
     // Remarcado    → Em Progresso (aprovado) | Cancelado (rejeitado novamente)
     // Em Progresso → Concluído | Cancelado
-    // Concluído / Cancelado → estados finais
+    // Concluído / Cancelado → estados finais (somente leitura)
+    // "Remarcado" NÃO é escolhido aqui: só é aplicado pelo fluxo remarcar(), que exige nova data.
     private static final Map<String, Set<String>> TRANSICOES = Map.of(
-        EM_ANALISE,   Set.of(EM_PROGRESSO, REMARCADO, CANCELADO),
+        EM_ANALISE,   Set.of(EM_PROGRESSO, CANCELADO),
         REMARCADO,    Set.of(EM_PROGRESSO, CANCELADO),
         EM_PROGRESSO, Set.of(CONCLUIDO, CANCELADO),
         CONCLUIDO,    Set.of(),
@@ -107,45 +113,48 @@ public class ServicoService {
         return servicoRepository.save(servico);
     }
 
-    // --- EDITAR: dados + transição de status (Remarcado exige nova data de início) ---
+    // --- EDITAR: dados + transição de status ---
+    // A data de início só muda pelo fluxo "Remarcar"; "Remarcado" não pode ser escolhido aqui.
     public Servico editarServico(Long id, ServicoRequestDTO dto) {
         Servico existente = buscarPorId(id);
+        validarNaoFinalizado(existente, "editado");
         Cliente cliente   = buscarCliente(dto.getIdCliente());
         validarPreco(dto.getPreco());
 
-        LocalDate novaDataInicio = dto.getDataInicio() != null ? dto.getDataInicio() : existente.getDataInicio();
-        LocalDate novoPrazo      = dto.getPrazoEntrega() != null ? dto.getPrazoEntrega() : existente.getPrazoEntrega();
-        boolean   dataMudou      = !Objects.equals(novaDataInicio, existente.getDataInicio());
+        if (dto.getDataInicio() != null && !dto.getDataInicio().equals(existente.getDataInicio())) {
+            throw new RuntimeException("A data de início só pode ser alterada pelo fluxo de Remarcar.");
+        }
+        LocalDate novoPrazo = dto.getPrazoEntrega() != null ? dto.getPrazoEntrega() : existente.getPrazoEntrega();
+        validarPrazo(existente.getDataInicio(), novoPrazo);
 
         // Transição de status (se houve mudança)
         if (dto.getStatus() != null && !dto.getStatus().equals(existente.getStatus())) {
-            validarTransicao(existente.getStatus(), dto.getStatus());
             if (REMARCADO.equals(dto.getStatus())) {
-                validarDataRemarcacao(existente.getDataInicio(), novaDataInicio);
+                throw new RuntimeException("Para remarcar o serviço, use a opção Remarcar e informe a nova data.");
             }
+            validarTransicao(existente.getStatus(), dto.getStatus());
             existente.setStatus(dto.getStatus());
         }
-
-        if (dataMudou) {
-            validarDataNaoRetroativa(novaDataInicio);
-            validarDataRecorrencia(existente.getServicoOrigem(), novaDataInicio);
-        }
-        validarPrazo(novaDataInicio, novoPrazo);
 
         existente.setCliente(cliente);
         existente.setTipoServico(dto.getTipoServico());
         existente.setDescricao(dto.getDescricao());
-        existente.setDataInicio(novaDataInicio);
         existente.setPrazoEntrega(novoPrazo);
         existente.setPreco(dto.getPreco());
         existente.setDataUltimo(LocalDate.now());
         return servicoRepository.save(existente);
     }
 
-    // --- REMARCAR: Em Análise (não aprovado) → Remarcado + nova data de início obrigatória ---
+    // --- REMARCAR: Em Análise ou Remarcado → Remarcado + nova data de início obrigatória ---
+    // Pode ser repetido quantas vezes for necessário enquanto o status permitir.
     public Servico remarcar(Long id, LocalDate novaDataInicio, LocalDate novoPrazo) {
         Servico servico = buscarPorId(id);
-        validarTransicao(servico.getStatus(), REMARCADO);
+        if (!PODE_REMARCAR.contains(servico.getStatus())) {
+            throw new RuntimeException(
+                "Só é possível remarcar serviços com status 'Em Análise' ou 'Remarcado' (atual: '"
+                + servico.getStatus() + "')."
+            );
+        }
         validarDataRemarcacao(servico.getDataInicio(), novaDataInicio);
         validarDataRecorrencia(servico.getServicoOrigem(), novaDataInicio);
 
@@ -189,13 +198,19 @@ public class ServicoService {
     }
 
     // --- EXCLUIR: tudo em SQL nativo, sem carregar a entidade e sem subconsultas na tabela servicos ---
-    // 1) apaga os relatórios do serviço  2) desvincula os serviços filhos  3) apaga o serviço
-    // Funciona para qualquer serviço: com/sem cliente (nulo ou id 0), com/sem relatórios ou filhos.
+    // 1) relatórios são PRESERVADOS: recebem os dados do serviço e são desvinculados
+    // 2) desvincula os serviços filhos  3) apaga o serviço
+    // Serviços Concluídos/Cancelados são somente leitura e não podem ser excluídos.
     @Transactional
     public void excluir(Long id) {
         if (id == null || servicoRepository.contarPorId(id) == 0) return; // já não existe: idempotente
+        String status = servicoRepository.buscarStatus(id);
+        if (FINALIZADOS.contains(status)) {
+            throw new RuntimeException("Serviços '" + status + "' não podem ser excluídos.");
+        }
         try {
-            relatorioRepository.excluirPorServico(id);
+            relatorioRepository.registrarDadosDoServico(id);
+            relatorioRepository.desvincularDoServico(id);
             servicoRepository.desvincularDerivados(id);
             int removidos = servicoRepository.excluirPorIdNativo(id);
             if (removidos == 0) {
@@ -209,6 +224,14 @@ public class ServicoService {
     }
 
     // ===================== VALIDAÇÕES =====================
+
+    private void validarNaoFinalizado(Servico servico, String acao) {
+        if (FINALIZADOS.contains(servico.getStatus())) {
+            throw new RuntimeException(
+                "Serviços '" + servico.getStatus() + "' são somente leitura e não podem ser " + acao + "."
+            );
+        }
+    }
 
     private Cliente buscarCliente(Long idCliente) {
         // Validação explícita do id — impede EntityNotFoundException com id 0

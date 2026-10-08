@@ -8,6 +8,7 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 import org.hibernate.annotations.NotFound;
 import org.hibernate.annotations.NotFoundAction;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
@@ -22,14 +23,27 @@ public class Relatorio {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idRelatorio;
 
-    // --- VÍNCULO OBRIGATÓRIO COM SERVIÇO ---
+    // --- VÍNCULO COM SERVIÇO ---
+    // Obrigatório na geração, mas pode ficar NULL depois: ao excluir o serviço o relatório
+    // é preservado e apenas desvinculado (ver ServicoService.excluir)
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "id_servico", nullable = false)
-    // Relatórios órfãos (serviço apagado sem cascata) não derrubam a listagem
+    @JoinColumn(name = "id_servico")
     @NotFound(action = NotFoundAction.IGNORE)
     @JsonIgnoreProperties({"hibernateLazyInitializer","handler","servicoOrigem"})
-    @NotNull(message = "Serviço vinculado é obrigatório.")
     private Servico servico;
+
+    // --- DADOS DO SERVIÇO REGISTRADOS NA GERAÇÃO ---
+    // Mantêm o relatório legível (card, detalhes e PDF) mesmo após o serviço ser excluído
+    @Column(length = 100)
+    private String servicoTipo;
+
+    @Column(length = 150)
+    private String clienteNome;
+
+    private LocalDate servicoDataInicio;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal servicoPreco;
 
     private LocalDate dataGeracao;
 

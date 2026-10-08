@@ -99,3 +99,7 @@ export function ordenarHierarquia(servicos) {
   servicos.forEach(s => visitar(s, 0)) // segurança contra ciclos
   return saida
 }
+
+// --- STATUS FINALIZADOS: serviço somente leitura (sem edição, remarcação ou exclusão) ---
+export const STATUS_FINALIZADOS = ['Concluído', 'Cancelado']
+export const servicoFinalizado = s => STATUS_FINALIZADOS.includes(s?.status)
