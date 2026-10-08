@@ -29,6 +29,7 @@ async function request(method, path, body) {
 // --- DOWNLOAD DE ARQUIVO (PDF) via blob ---
 async function baixarArquivo(path, nomeArquivo) {
   const res = await fetch(`${BASE}${path}`, { cache: 'no-store' })
+  if (res.status === 204) return false // registro não existe mais
   if (!res.ok) {
     const data = await res.json().catch(() => null)
     throw new Error(data?.erro || data?.message || 'Não foi possível gerar o arquivo.')
@@ -42,6 +43,7 @@ async function baixarArquivo(path, nomeArquivo) {
   link.click()
   link.remove()
   setTimeout(() => window.URL.revokeObjectURL(url), 1000)
+  return true
 }
 
 // --- CLIENTES ---

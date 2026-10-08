@@ -91,7 +91,8 @@ export default function TelaRelatorio() {
   async function handleExportarPdf(id) {
     setBaixando(id)
     try {
-      await relatorioApi.exportarPdf(id)
+      const ok = await relatorioApi.exportarPdf(id)
+      if (!ok) removerInexistente(id)
     } catch (e) {
       toast.erro(e.message)
     } finally {
@@ -99,9 +100,18 @@ export default function TelaRelatorio() {
     }
   }
 
+  // Relatório que não existe mais no backend: tira da lista e sincroniza, sem erro na tela
+  function removerInexistente(id) {
+    setRelatorios(prev => prev.filter(r => r.idRelatorio !== id))
+    setModalDetalhe(false)
+    carregar()
+  }
+
   async function handleVerDetalhe(id) {
     try {
-      setSelecionado(await relatorioApi.buscar(id))
+      const rel = await relatorioApi.buscar(id)
+      if (!rel) { removerInexistente(id); return }
+      setSelecionado(rel)
       setModalDetalhe(true)
     } catch (e) {
       toast.erro(e.message)
@@ -149,7 +159,7 @@ export default function TelaRelatorio() {
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-800">
-                    Relatório #{r.idRelatorio}
+                    Relatório{r.servico?.tipoServico ? ` · ${r.servico.tipoServico}` : ''}
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5 truncate">
                     {r.descricao}
@@ -227,7 +237,7 @@ export default function TelaRelatorio() {
                 <option value="">— Selecione o serviço —</option>
                 {servicos.map(s => (
                   <option key={s.idServico} value={s.idServico}>
-                    #{s.idServico} · {s.tipoServico} — {s.cliente?.nome || '?'}
+                    {s.tipoServico} — {s.cliente?.nome || '?'}{s.dataServico ? ` (${s.dataServico})` : ''}
                   </option>
                 ))}
               </select>
@@ -272,7 +282,7 @@ export default function TelaRelatorio() {
       {/* --- MODAL DETALHE DO RELATÓRIO --- */}
       {modalDetalhe && selecionado && (
         <Modal
-          titulo={`Relatório #${selecionado.idRelatorio}`}
+          titulo="Detalhes do Relatório"
           onFechar={() => setModalDetalhe(false)}
           tamanho="md"
           footer={
@@ -291,7 +301,6 @@ export default function TelaRelatorio() {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Relatório</h3>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  ['ID',          `#${selecionado.idRelatorio}`],
                   ['Data Geração', selecionado.dataGeracao],
                 ].map(([lbl, val]) => (
                   <div key={lbl} className="flex flex-col gap-0.5">
@@ -314,7 +323,6 @@ export default function TelaRelatorio() {
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Serviço Vinculado</h3>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      ['ID Serviço', `#${selecionado.servico.idServico}`],
                       ['Tipo',       selecionado.servico.tipoServico],
                       ['Data',       selecionado.servico.dataServico || '—'],
                     ].map(([lbl, val]) => (

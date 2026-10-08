@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -24,13 +26,17 @@ public class RelatorioService {
     private final RelatorioRepository relatorioRepository;
     private final ServicoService servicoService;
 
+    // --- LISTAGEM: ignora relatórios cujo serviço vinculado não existe mais ---
     public List<Relatorio> listarTodos() {
-        return relatorioRepository.findAll();
+        return relatorioRepository.findAll().stream()
+                .filter(r -> Objects.nonNull(r.getServico()))
+                .toList();
     }
 
-    public Relatorio selecionarRelatorio(Long id) {
-        return relatorioRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Relatório não encontrado: " + id));
+    // --- CONSULTA TOLERANTE: relatório inexistente (ou órfão) → Optional vazio, sem exceção ---
+    public Optional<Relatorio> selecionarRelatorio(Long id) {
+        if (id == null) return Optional.empty();
+        return relatorioRepository.findById(id).filter(r -> r.getServico() != null);
     }
 
     // --- GERAR RELATÓRIO VINCULADO A UM SERVIÇO ---
@@ -47,12 +53,12 @@ public class RelatorioService {
     }
 
     // --- EXPORTAR PDF: dados do cliente + serviço + relatório ---
-    public byte[] exportarPdf(Long idRelatorio) throws Exception {
-        Relatorio rel = selecionarRelatorio(idRelatorio);
+    // Retorna Optional vazio quando o relatório (ou seu serviço) não existe mais
+    public Optional<byte[]> exportarPdf(Long idRelatorio) throws Exception {
+        Optional<Relatorio> encontrado = selecionarRelatorio(idRelatorio);
+        if (encontrado.isEmpty()) return Optional.empty();
+        Relatorio rel = encontrado.get();
         Servico   srv = rel.getServico();
-        if (srv == null) {
-            throw new RuntimeException("O serviço vinculado ao relatório #" + idRelatorio + " não existe mais.");
-        }
 
         Document doc = new Document(PageSize.A4, 50, 50, 70, 50);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -112,7 +118,7 @@ public class RelatorioService {
         }));
 
         doc.close();
-        return out.toByteArray();
+        return Optional.of(out.toByteArray());
     }
 
     // --- HELPER: monta tabela de dois colunas (label | valor) ---
