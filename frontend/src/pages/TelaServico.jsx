@@ -6,9 +6,14 @@ import Modal from '../components/Modal'
 import BadgeStatus from '../components/BadgeStatus'
 import ModalAcompanhamento from '../components/ModalAcompanhamento'
 import ConfirmModal from '../components/ConfirmModal'
-import { TIPOS_SERVICO, dataMinima } from '../utils/validacoes'
+import InputMoeda from '../components/InputMoeda'
+import {
+  TIPOS_SERVICO, dataMinima, formatarReais, formatarData, precoValido, ordenarHierarquia,
+} from '../utils/validacoes'
 
-const FORM_VAZIO = { idCliente: '', tipoServico: '', descricao: '', dataServico: '' }
+const FORM_VAZIO = {
+  idCliente: '', tipoServico: '', descricao: '', dataInicio: '', prazoEntrega: '', preco: null,
+}
 
 // Extrai o ID real do cliente (backend serializa como idCliente; aceita "id" por segurança)
 const idDoCliente = c => c?.idCliente ?? c?.id
@@ -24,7 +29,11 @@ function validarForm(form) {
   // Verifica string vazia OU número 0 (Number('') === 0)
   if (!idClienteValido(form.idCliente)) e.idCliente = 'Selecione um cliente.'
   if (!form.tipoServico) e.tipoServico = 'Selecione o tipo de serviço.'
-  if (!form.dataServico) e.dataServico = 'Data é obrigatória.'
+  if (!form.dataInicio) e.dataInicio = 'Data de início é obrigatória.'
+  if (!form.prazoEntrega) e.prazoEntrega = 'Prazo de entrega é obrigatório.'
+  else if (form.dataInicio && form.prazoEntrega < form.dataInicio)
+    e.prazoEntrega = 'O prazo não pode ser anterior à data de início.'
+  if (!precoValido(form.preco)) e.preco = 'Informe um preço de no mínimo R$ 0,01.'
   return e
 }
 
@@ -49,7 +58,7 @@ export default function TelaServico() {
     try {
       // allSettled: falha em uma lista não impede a outra de atualizar
       const [s, c] = await Promise.allSettled([servicoApi.listar(), clienteApi.listar()])
-      if (s.status === 'fulfilled') setServicos(s.value)
+      if (s.status === 'fulfilled') setServicos(ordenarHierarquia(s.value))
       else toast.erro('Erro ao carregar serviços: ' + s.reason.message)
       if (c.status === 'fulfilled') setClientes(c.value)
       else toast.erro('Erro ao carregar clientes: ' + c.reason.message)
@@ -98,7 +107,9 @@ export default function TelaServico() {
         idCliente:   idClienteNum,
         tipoServico: form.tipoServico,
         descricao:   form.descricao || null,
-        dataServico: form.dataServico || null,
+        dataInicio:   form.dataInicio,
+        prazoEntrega: form.prazoEntrega,
+        preco:        form.preco,
       })
       toast.sucesso('Serviço cadastrado. Status inicial: Em Análise.')
       setModalCriar(false)
@@ -119,7 +130,7 @@ export default function TelaServico() {
       // Atualiza o estado local na hora: remove o serviço e desvincula os derivados dele
       setServicos(prev => prev
         .filter(s => s.idServico !== idExcluido)
-        .map(s => s.servicoOrigem?.idServico === idExcluido ? { ...s, servicoOrigem: null } : s))
+        .map(s => s.servicoOrigem?.idServico === idExcluido ? { ...s, servicoOrigem: null, nivel: 0 } : s))
       toast.sucesso('Serviço excluído.')
       carregar() // sincroniza com o backend
     } catch (e) {
@@ -161,19 +172,19 @@ export default function TelaServico() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-verde-900 text-white">
-                {['Tipo', 'Cliente', 'Status', 'Data', 'Criado em', 'Origem', 'Ações'].map(h => (
+                {['Tipo', 'Cliente', 'Status', 'Preço (R$)', 'Data Início', 'Prazo de Entrega', 'Origem', 'Ações'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {carregando ? (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-400">
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400">
                   <i className="bi bi-arrow-clockwise animate-spin text-2xl block mb-2"></i>
                   Carregando...
                 </td></tr>
               ) : servicos.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-400">
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400">
                   <i className="bi bi-tools text-3xl block mb-2 opacity-30"></i>
                   Nenhum serviço cadastrado.
                 </td></tr>
@@ -184,28 +195,35 @@ export default function TelaServico() {
                     ? 'bg-violet-50/60 hover:bg-violet-50 shadow-[inset_3px_0_0_0_#8b5cf6]'
                     : 'hover:bg-slate-50'}`}
                 >
-                  <td className="px-4 py-3 max-w-[180px]">
-                    <p className="font-medium text-slate-800 truncate" title={s.tipoServico}>{s.tipoServico}</p>
+                  <td className="px-4 py-3 max-w-[220px]">
+                    <div className="flex items-center gap-1.5" style={{ paddingLeft: `${(s.nivel ?? 0) * 16}px` }}>
+                      {s.nivel > 0 && <i className="bi bi-arrow-return-right text-violet-500"></i>}
+                      <p className="font-medium text-slate-800 truncate" title={s.tipoServico}>{s.tipoServico}</p>
+                    </div>
                     {s.servicoOrigem && (
-                      <span className="badge bg-violet-100 text-violet-700 border border-violet-200 mt-1">
+                      <span
+                        className="badge bg-violet-100 text-violet-700 border border-violet-200 mt-1"
+                        style={{ marginLeft: `${(s.nivel ?? 0) * 16}px` }}
+                      >
                         <i className="bi bi-arrow-repeat mr-1"></i>Recorrente
                       </span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-600">{s.cliente?.nome || '—'}</td>
                   <td className="px-4 py-3"><BadgeStatus status={s.status} /></td>
-                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{s.dataServico || '—'}</td>
-                  <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{s.dataCriado || '—'}</td>
+                  <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">{formatarReais(s.preco)}</td>
+                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatarData(s.dataInicio)}</td>
+                  <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatarData(s.prazoEntrega)}</td>
                   <td className="px-4 py-3">
                     {s.servicoOrigem
                       ? (
                         <span
                           className="badge bg-violet-100 text-violet-700 border border-violet-200 whitespace-nowrap"
                           title={`Recorrente — gerado a partir de: ${s.servicoOrigem.tipoServico ?? 'serviço de origem'}`
-                            + (s.servicoOrigem.dataServico ? ` (${s.servicoOrigem.dataServico})` : '')}
+                            + (s.servicoOrigem.dataInicio ? ` (${formatarData(s.servicoOrigem.dataInicio)})` : '')}
                         >
                           <i className="bi bi-link-45deg mr-0.5"></i>
-                          Gerado após {s.servicoOrigem.dataServico || 'serviço de origem'}
+                          Gerado após {s.servicoOrigem.dataInicio ? formatarData(s.servicoOrigem.dataInicio) : 'serviço de origem'}
                         </span>
                       )
                       : <span className="text-xs text-slate-400">Primário</span>}
@@ -316,17 +334,41 @@ export default function TelaServico() {
               />
             </div>
 
-            {/* Data (não retroativa) */}
+            {/* Datas: início (não retroativa) e prazo de entrega (≥ início) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="form-label">Data de Início *</label>
+                <input
+                  type="date"
+                  className={`input-field ${errosForm.dataInicio ? 'error' : ''}`}
+                  min={hoje}
+                  value={form.dataInicio}
+                  onChange={e => handleChange('dataInicio', e.target.value)}
+                />
+                {errosForm.dataInicio && <p className="form-error">{errosForm.dataInicio}</p>}
+              </div>
+              <div>
+                <label className="form-label">Prazo de Entrega *</label>
+                <input
+                  type="date"
+                  className={`input-field ${errosForm.prazoEntrega ? 'error' : ''}`}
+                  min={form.dataInicio || hoje}
+                  value={form.prazoEntrega}
+                  onChange={e => handleChange('prazoEntrega', e.target.value)}
+                />
+                {errosForm.prazoEntrega && <p className="form-error">{errosForm.prazoEntrega}</p>}
+              </div>
+            </div>
+
+            {/* Preço (R$) — mínimo R$ 0,01 */}
             <div>
-              <label className="form-label">Data do Serviço *</label>
-              <input
-                type="date"
-                className={`input-field ${errosForm.dataServico ? 'error' : ''}`}
-                min={hoje}
-                value={form.dataServico}
-                onChange={e => handleChange('dataServico', e.target.value)}
+              <label className="form-label">Preço (R$) *</label>
+              <InputMoeda
+                className={`input-field ${errosForm.preco ? 'error' : ''}`}
+                value={form.preco}
+                onChange={v => handleChange('preco', v)}
               />
-              {errosForm.dataServico && <p className="form-error">{errosForm.dataServico}</p>}
+              {errosForm.preco && <p className="form-error">{errosForm.preco}</p>}
             </div>
 
             <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-500">

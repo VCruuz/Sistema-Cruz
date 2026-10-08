@@ -49,3 +49,53 @@ export const TIPOS_SERVICO = [
   'Regularização de Imóvel (Habite-se)',
   'Consulta / Assessoria Técnica',
 ]
+
+// --- MOEDA (R$) ---
+const FORMATADOR_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+// Formata número como "R$ 1.234,56"; null/undefined → "—"
+export function formatarReais(valor) {
+  if (valor === null || valor === undefined || valor === '' || isNaN(Number(valor))) return '—'
+  return FORMATADOR_BRL.format(Number(valor))
+}
+
+// Preço válido: número ≥ 0,01
+export function precoValido(valor) {
+  const n = Number(valor)
+  return valor !== null && valor !== '' && !isNaN(n) && n >= 0.01
+}
+
+// --- DATAS: "YYYY-MM-DD" → "DD/MM/YYYY" ---
+export function formatarData(data) {
+  if (!data) return '—'
+  const [a, m, d] = String(data).split('-')
+  return d && m && a ? `${d}/${m}/${a}` : String(data)
+}
+
+// --- ORDENAÇÃO HIERÁRQUICA: recorrentes logo abaixo do serviço que os gerou ---
+// Retorna nova lista; cada item ganha "nivel" (0 = primário, 1+ = recorrente)
+export function ordenarHierarquia(servicos) {
+  const porId  = new Map(servicos.map(s => [s.idServico, s]))
+  const filhos = new Map()
+  const raizes = []
+  for (const s of [...servicos].sort((a, b) => a.idServico - b.idServico)) {
+    const idOrigem = s.servicoOrigem?.idServico
+    if (idOrigem && porId.has(idOrigem)) {
+      if (!filhos.has(idOrigem)) filhos.set(idOrigem, [])
+      filhos.get(idOrigem).push(s)
+    } else {
+      raizes.push(s)
+    }
+  }
+  const saida = []
+  const vistos = new Set()
+  const visitar = (s, nivel) => {
+    if (vistos.has(s.idServico)) return
+    vistos.add(s.idServico)
+    saida.push({ ...s, nivel })
+    for (const f of filhos.get(s.idServico) ?? []) visitar(f, nivel + 1)
+  }
+  raizes.forEach(r => visitar(r, 0))
+  servicos.forEach(s => visitar(s, 0)) // segurança contra ciclos
+  return saida
+}

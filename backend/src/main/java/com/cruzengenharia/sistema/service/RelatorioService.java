@@ -120,7 +120,9 @@ public class RelatorioService {
             {"Nº do Serviço",  String.valueOf(srv.getIdServico())},
             {"Tipo",           srv.getTipoServico()},
             {"Status",         srv.getStatus()},
-            {"Data do Serviço",srv.getDataServico()  != null ? srv.getDataServico().toString()  : "—"},
+            {"Data de Início", srv.getDataInicio()   != null ? srv.getDataInicio().toString()   : "—"},
+            {"Prazo de Entrega",srv.getPrazoEntrega() != null ? srv.getPrazoEntrega().toString() : "—"},
+            {"Preço",          srv.getPreco()        != null ? formatarReais(srv.getPreco())    : "—"},
             {"Data de Criação",srv.getDataCriado()   != null ? srv.getDataCriado().toString()   : "—"},
             {"Descrição",      srv.getDescricao()    != null ? srv.getDescricao()               : "—"}
         }));
@@ -155,5 +157,10 @@ public class RelatorioService {
             alt = !alt;
         }
         return t;
+    }
+
+    // Formata BigDecimal como moeda brasileira (R$ 1.234,56)
+    private static String formatarReais(java.math.BigDecimal valor) {
+        return java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("pt-BR")).format(valor);
     }
 }

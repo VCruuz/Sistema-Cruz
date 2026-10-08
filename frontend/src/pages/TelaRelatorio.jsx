@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext'
 import Modal from '../components/Modal'
 import ConfirmModal from '../components/ConfirmModal'
 import BadgeStatus from '../components/BadgeStatus'
+import { formatarReais, formatarData } from '../utils/validacoes'
 
 const FORM_VAZIO = { idServico: '', descricao: '' }
 
@@ -255,7 +256,7 @@ export default function TelaRelatorio() {
                 <option value="">— Selecione o serviço —</option>
                 {servicos.map(s => (
                   <option key={s.idServico} value={s.idServico}>
-                    {s.tipoServico} — {s.cliente?.nome || '?'}{s.dataServico ? ` (${s.dataServico})` : ''}
+                    {s.tipoServico} — {s.cliente?.nome || '?'}{s.dataInicio ? ` (${formatarData(s.dataInicio)})` : ''}
                   </option>
                 ))}
               </select>
@@ -342,7 +343,9 @@ export default function TelaRelatorio() {
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       ['Tipo',       selecionado.servico.tipoServico],
-                      ['Data',       selecionado.servico.dataServico || '—'],
+                      ['Data de Início',   formatarData(selecionado.servico.dataInicio)],
+                      ['Prazo de Entrega', formatarData(selecionado.servico.prazoEntrega)],
+                      ['Preço',            formatarReais(selecionado.servico.preco)],
                     ].map(([lbl, val]) => (
                       <div key={lbl} className="flex flex-col gap-0.5">
                         <span className="text-xs text-slate-400">{lbl}</span>
