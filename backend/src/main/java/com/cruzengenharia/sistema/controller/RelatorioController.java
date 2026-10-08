@@ -51,4 +51,11 @@ public class RelatorioController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdf);
     }
+
+    // --- EXCLUIR RELATÓRIO: DELETE /api/relatorios/{id} ---
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> excluirRelatorio(@PathVariable Long id) {
+        relatorioService.excluirRelatorio(id);
+        return ResponseEntity.noContent().build();
+    }
 }

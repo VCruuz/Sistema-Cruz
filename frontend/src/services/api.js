@@ -78,5 +78,6 @@ export const relatorioApi = {
   listar:  ()    => request('GET',  '/relatorios'),
   buscar:  (id)  => request('GET',  `/relatorios/${id}`),
   gerar:   (dto) => request('POST', '/relatorios/gerar', dto),
+  excluir: (id)  => request('DELETE', `/relatorios/${id}`),
   exportarPdf: (id) => baixarArquivo(`/relatorios/${id}/pdf`, `relatorio-${id}.pdf`),
 }

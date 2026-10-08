@@ -27,6 +27,7 @@ export default function TelaRelatorio() {
   const [form,           setForm]           = useState(FORM_VAZIO)
   const [errosForm,      setErrosForm]      = useState({})
   const [loading,        setLoading]        = useState(false)
+  const [confirmExcluir, setConfirmExcluir] = useState(null)
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -107,6 +108,21 @@ export default function TelaRelatorio() {
     carregar()
   }
 
+  // --- EXCLUIR RELATÓRIO: fecha a confirmação, remove da lista e sincroniza ---
+  async function handleExcluirConfirmado() {
+    const idExcluido = confirmExcluir
+    setConfirmExcluir(null)
+    try {
+      await relatorioApi.excluir(idExcluido)
+      setRelatorios(prev => prev.filter(r => r.idRelatorio !== idExcluido))
+      if (selecionado?.idRelatorio === idExcluido) setModalDetalhe(false)
+      toast.sucesso('Relatório excluído.')
+      carregar()
+    } catch (e) {
+      toast.erro(e.message)
+    }
+  }
+
   async function handleVerDetalhe(id) {
     try {
       const rel = await relatorioApi.buscar(id)
@@ -160,6 +176,9 @@ export default function TelaRelatorio() {
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-slate-800">
                     Relatório{r.servico?.tipoServico ? ` · ${r.servico.tipoServico}` : ''}
+                    <span className="font-normal text-slate-500">
+                      {' - Cliente: '}{r.servico?.cliente?.nome || 'Cliente não informado'}
+                    </span>
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5 truncate">
                     {r.descricao}
@@ -171,14 +190,6 @@ export default function TelaRelatorio() {
                     </span>
                     {r.servico && (
                       <>
-                        <span className="text-xs text-slate-400">
-                          <i className="bi bi-tools mr-1"></i>
-                          {r.servico.tipoServico}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          <i className="bi bi-person mr-1"></i>
-                          {r.servico.cliente?.nome}
-                        </span>
                         <BadgeStatus status={r.servico.status} />
                       </>
                     )}
@@ -200,6 +211,13 @@ export default function TelaRelatorio() {
                   {baixando === r.idRelatorio
                     ? <><i className="bi bi-arrow-clockwise animate-spin"></i> Gerando...</>
                     : <><i className="bi bi-file-earmark-pdf"></i> PDF</>}
+                </button>
+                <button
+                  className="btn-danger py-1.5 px-3 text-xs"
+                  onClick={() => setConfirmExcluir(r.idRelatorio)}
+                  title="Excluir relatório"
+                >
+                  <i className="bi bi-trash"></i> Excluir
                 </button>
               </div>
             </div>
@@ -370,6 +388,15 @@ export default function TelaRelatorio() {
             )}
           </div>
         </Modal>
+      )}
+      {/* --- CONFIRMAÇÃO DE EXCLUSÃO --- */}
+      {confirmExcluir && (
+        <ConfirmModal
+          titulo="Excluir relatório"
+          mensagem="Tem certeza que deseja excluir este relatório? Esta ação não pode ser desfeita."
+          onConfirmar={handleExcluirConfirmado}
+          onCancelar={() => setConfirmExcluir(null)}
+        />
       )}
     </>
   )

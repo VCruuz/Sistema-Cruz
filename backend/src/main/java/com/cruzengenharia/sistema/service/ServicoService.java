@@ -137,17 +137,19 @@ public class ServicoService {
         return servicoRepository.save(novo);
     }
 
-    // --- EXCLUIR: remove relatórios vinculados (cascata) e desvincula serviços derivados ---
+    // --- EXCLUIR: tudo em SQL nativo, sem carregar a entidade e sem subconsultas na tabela servicos ---
+    // 1) apaga os relatórios do serviço  2) desvincula os serviços filhos  3) apaga o serviço
+    // Funciona para qualquer serviço: com/sem cliente (nulo ou id 0), com/sem relatórios ou filhos.
     @Transactional
     public void excluir(Long id) {
-        Optional<Servico> encontrado = buscarOpcional(id);
-        if (encontrado.isEmpty()) return; // já não existe: exclusão idempotente, sem erro na tela
-        Servico servico = encontrado.get();
+        if (id == null || servicoRepository.contarPorId(id) == 0) return; // já não existe: idempotente
         try {
             relatorioRepository.excluirPorServico(id);
             servicoRepository.desvincularDerivados(id);
-            servicoRepository.delete(servico);
-            servicoRepository.flush(); // força o DELETE agora para capturar violação de FK aqui
+            int removidos = servicoRepository.excluirPorIdNativo(id);
+            if (removidos == 0) {
+                throw new RuntimeException("Não foi possível excluir o serviço. Tente novamente.");
+            }
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             throw new RuntimeException(
                 "Não é possível excluir este serviço pois ele possui registros vinculados."
