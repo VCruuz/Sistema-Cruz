@@ -5,8 +5,8 @@ package com.cruzengenharia.sistema.service;
 import com.cruzengenharia.sistema.model.Cliente;
 import com.cruzengenharia.sistema.repository.ClienteRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -16,8 +16,9 @@ public class ClienteService {
 
     private final ClienteRepository clienteRepository;
 
+    // Lista apenas clientes ativos (excluídos ficam ocultos, mas preservados no histórico)
     public List<Cliente> listarCliente() {
-        return clienteRepository.findAll();
+        return clienteRepository.listarAtivos();
     }
 
     public Cliente visualizarCliente(Long id) {
@@ -31,6 +32,9 @@ public class ClienteService {
 
     public Cliente editarCliente(Long id, Cliente dados) {
         Cliente existente = visualizarCliente(id);
+        if (existente.isExcluido()) {
+            throw new RuntimeException("Este cliente foi excluído e não pode ser editado.");
+        }
         existente.setNome(dados.getNome());
         existente.setTelefone(dados.getTelefone());
         existente.setEmail(dados.getEmail());
@@ -42,13 +46,10 @@ public class ClienteService {
         return clienteRepository.save(cliente);
     }
 
+    // --- SOFT DELETE: marca como inativo; serviços e relatórios continuam apontando para ele ---
+    @Transactional
     public void excluirCliente(Long id) {
-        try {
-            clienteRepository.deleteById(id);
-        } catch (DataIntegrityViolationException e) {
-            throw new RuntimeException(
-                "Não é possível excluir este cliente pois ele possui serviços vinculados."
-            );
-        }
+        if (id == null) return;
+        clienteRepository.desativar(id); // idempotente: cliente inexistente não gera erro
     }
 }

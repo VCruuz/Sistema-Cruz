@@ -11,9 +11,8 @@ import java.time.LocalDate;
 @Data
 public class ServicoRequestDTO {
 
-    // @NotNull + @Min(1) garante que nunca chegue null, 0 ou negativo
-    @NotNull(message = "Cliente é obrigatório.")
-    @Min(value = 1, message = "ID de cliente inválido.")
+    // Obrigatório (> 0) no cadastro — validado no ServicoService. Na edição/recorrência pode vir
+    // vazio quando o cliente do serviço foi excluído; nesse caso o vínculo atual é mantido.
     @JsonAlias("clienteId")
     private Long idCliente;
 

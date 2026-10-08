@@ -7,7 +7,7 @@ import { servicoApi } from '../services/api'
 import { useToast } from '../context/ToastContext'
 import {
   TIPOS_SERVICO, dataMinima, dataMinimaRecorrencia, formatarReais, formatarData, precoValido,
-  STATUS_FINALIZADOS,
+  STATUS_FINALIZADOS, clienteExcluido, nomeClienteServico,
 } from '../utils/validacoes'
 
 // --- MÁQUINA DE ESTADOS (Diagrama de Estados) — opções do select "Alterar Status" ---
@@ -64,6 +64,8 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   const statusDisponiveis = TRANSICOES[servico.status] ?? []
   const abasVisiveis      = ABAS.filter(a => !a.status || a.status.includes(servico.status))
   const somenteLeitura    = STATUS_FINALIZADOS.includes(servico.status)
+  const semCliente        = clienteExcluido(servico)
+  const nomeCliente       = nomeClienteServico(servico)
 
   // Se o status mudar e a aba atual deixar de existir, volta para "Editar"
   useEffect(() => {
@@ -146,6 +148,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
   async function handleVinculado() {
     const f = formVinculado
     if (servico.status !== 'Em Progresso') { toast.aviso('Recorrência só pode ser gerada para serviços Em Progresso.'); return }
+    if (semCliente) { toast.aviso('Não é possível gerar recorrência para um cliente excluído.'); return }
     if (!f.tipoServico)  { toast.aviso('Selecione o tipo do novo serviço.'); return }
     if (!f.dataInicio)   { toast.aviso('Informe a data de início do novo serviço.'); return }
     if (f.dataInicio < minDataDerivado) {
@@ -187,7 +190,9 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
             <p className="text-xs text-slate-500 mt-0.5 truncate">{servico.descricao}</p>
           )}
           <div className="flex flex-wrap gap-3 mt-1.5 text-xs text-slate-500">
-            <span><i className="bi bi-person mr-1"></i>{servico.cliente?.nome ?? '—'}</span>
+            <span className={semCliente ? 'text-red-600' : ''}>
+              <i className="bi bi-person mr-1"></i>{nomeCliente}
+            </span>
             <span><i className="bi bi-cash-coin mr-1"></i>{formatarReais(servico.preco)}</span>
             <span><i className="bi bi-calendar3 mr-1"></i>Início: {formatarData(servico.dataInicio)}</span>
             <span><i className="bi bi-flag mr-1"></i>Entrega: {formatarData(servico.prazoEntrega)}</span>
@@ -212,7 +217,7 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               ['Tipo de Serviço',  servico.tipoServico],
-              ['Cliente',          servico.cliente?.nome ?? '—'],
+              ['Cliente',          nomeCliente],
               ['Status',           servico.status],
               ['Preço',            formatarReais(servico.preco)],
               ['Data de Início',   formatarData(servico.dataInicio)],
@@ -401,9 +406,16 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
           <div className="rounded-lg bg-violet-50 border border-violet-200 px-4 py-3 text-sm text-violet-800">
             <i className="bi bi-arrow-repeat mr-1.5"></i>
             Gera um <strong>serviço recorrente</strong> para o mesmo cliente
-            <strong> {servico.cliente?.nome}</strong>, vinculado a este serviço. A data de início deve ser
+            <strong> {nomeCliente}</strong>, vinculado a este serviço. A data de início deve ser
             posterior a <strong>{formatarData(servico.dataInicio)}</strong>.
           </div>
+
+          {semCliente && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              <i className="bi bi-person-x mr-1.5"></i>
+              Não é possível gerar recorrência para um cliente excluído.
+            </div>
+          )}
 
           <div>
             <label className="form-label">Tipo do Novo Serviço *</label>
@@ -462,7 +474,12 @@ export default function ModalAcompanhamento({ servico: inicial, onFechar, onAtua
             />
           </div>
 
-          <button className="btn-primary" onClick={handleVinculado} disabled={loading}>
+          <button
+            className="btn-primary"
+            onClick={handleVinculado}
+            disabled={loading || semCliente}
+            title={semCliente ? 'Não é possível gerar recorrência para um cliente excluído.' : ''}
+          >
             {loading
               ? <><i className="bi bi-arrow-clockwise animate-spin"></i> Gerando...</>
               : <><i className="bi bi-arrow-repeat"></i> Gerar Recorrência</>

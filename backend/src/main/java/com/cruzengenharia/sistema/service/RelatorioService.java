@@ -59,7 +59,7 @@ public class RelatorioService {
                 .servico(servico)
                 // Dados registrados: mantêm o relatório legível mesmo se o serviço for excluído
                 .servicoTipo(servico.getTipoServico())
-                .clienteNome(servico.getCliente() != null ? servico.getCliente().getNome() : null)
+                .clienteNome(servico.getCliente() != null ? servico.getCliente().getNome() : servico.getClienteNome())
                 .servicoDataInicio(servico.getDataInicio())
                 .servicoPreco(servico.getPreco())
                 .dataGeracao(LocalDate.now())
@@ -111,19 +111,11 @@ public class RelatorioService {
         }));
         doc.add(new Paragraph(" "));
 
-        // --- SEÇÃO: DADOS DO CLIENTE ---
+        // --- SEÇÃO: DADOS DO CLIENTE (nunca em branco) ---
+        // 1) cliente vinculado (mesmo inativo/excluído: soft delete preserva o cadastro)
+        // 2) senão, nome histórico registrado no relatório ou no serviço
         doc.add(new Paragraph("Dados do Cliente", fSecao));
-        // Cliente pode ser null em registros antigos órfãos (ver @NotFound em Servico)
-        // Serviço excluído: usa os dados registrados no relatório na geração
-        Cliente cli = srv != null && srv.getCliente() != null
-                ? srv.getCliente()
-                : Cliente.builder().nome(rel.getClienteNome()).build();
-        doc.add(buildInfoTable(fLabel, fValor, cinzaClaro, new String[][]{
-            {"Nome",      cli.getNome()},
-            {"Telefone",  cli.getTelefone()},
-            {"E-mail",    cli.getEmail()},
-            {"Endereço",  cli.getEndereco()}
-        }));
+        doc.add(buildInfoTable(fLabel, fValor, cinzaClaro, dadosClientePdf(rel, srv)));
         doc.add(new Paragraph(" "));
 
         // --- SEÇÃO: DADOS DO SERVIÇO ---
@@ -181,5 +173,43 @@ public class RelatorioService {
     // Formata BigDecimal como moeda brasileira (R$ 1.234,56)
     private static String formatarReais(java.math.BigDecimal valor) {
         return java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("pt-BR")).format(valor);
+    }
+
+    // --- Dados do cliente para o PDF com fallback histórico ---
+    private static final String NAO_DISPONIVEL = "Não disponível (cliente excluído)";
+
+    private String[][] dadosClientePdf(Relatorio rel, Servico srv) {
+        Cliente cli = srv != null ? srv.getCliente() : null;
+        if (cli != null) {
+            String nome = valorOu(cli.getNome(), nomeHistorico(rel, srv));
+            if (cli.isExcluido()) nome += " (Inativo)";
+            return new String[][]{
+                {"Nome",     nome},
+                {"Telefone", valorOu(cli.getTelefone(), NAO_DISPONIVEL)},
+                {"E-mail",   valorOu(cli.getEmail(),    NAO_DISPONIVEL)},
+                {"Endereço", valorOu(cli.getEndereco(), NAO_DISPONIVEL)},
+                {"Situação", cli.isExcluido()
+                        ? "Cliente excluído" + (cli.getDataExclusao() != null ? " em " + cli.getDataExclusao() : "")
+                        : "Ativo"}
+            };
+        }
+        // Cliente removido do banco: usa o nome histórico
+        return new String[][]{
+            {"Nome",     nomeHistorico(rel, srv) + " (Inativo)"},
+            {"Telefone", NAO_DISPONIVEL},
+            {"E-mail",   NAO_DISPONIVEL},
+            {"Endereço", NAO_DISPONIVEL},
+            {"Situação", "Cliente excluído"}
+        };
+    }
+
+    private String nomeHistorico(Relatorio rel, Servico srv) {
+        if (rel.getClienteNome() != null && !rel.getClienteNome().isBlank()) return rel.getClienteNome();
+        if (srv != null && srv.getClienteNome() != null && !srv.getClienteNome().isBlank()) return srv.getClienteNome();
+        return "Cliente não identificado";
+    }
+
+    private static String valorOu(String valor, String padrao) {
+        return valor != null && !valor.isBlank() ? valor : padrao;
     }
 }

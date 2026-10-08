@@ -24,12 +24,17 @@ public class Servico {
 
     // --- VÍNCULO OBRIGATÓRIO COM CLIENTE ---
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "id_cliente", nullable = false)
+    @JoinColumn(name = "id_cliente")
     // Registros antigos gravados com id_cliente = 0 (bug anterior) não derrubam a listagem
     // com "Unable to find Cliente with id 0" — o cliente inexistente vira null.
     @NotFound(action = NotFoundAction.IGNORE)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Cliente cliente;
+
+    // --- NOME DO CLIENTE REGISTRADO (histórico) ---
+    // Mantém a identificação do contratante mesmo se o cliente for excluído/removido
+    @Column(name = "cliente_nome", length = 150)
+    private String clienteNome;
 
     // --- SERVIÇO DE ORIGEM: vínculo com serviço derivado (opcional) ---
     @ManyToOne(fetch = FetchType.EAGER)

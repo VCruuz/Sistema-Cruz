@@ -304,7 +304,7 @@ export default function TelaCliente() {
       {confirmExcluir && (
         <ConfirmModal
           titulo="Excluir cliente"
-          mensagem="Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita."
+          mensagem="Tem certeza que deseja excluir este cliente? Ele deixará de aparecer na lista, mas os serviços e relatórios vinculados manterão o nome e os dados dele no histórico."
           onConfirmar={handleExcluirConfirmado}
           onCancelar={() => setConfirmExcluir(null)}
           loading={loadingExcluir}

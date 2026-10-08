@@ -18,3 +18,22 @@ UPDATE relatorios r
        r.servico_data_inicio = COALESCE(r.servico_data_inicio, s.data_servico),
        r.servico_preco       = COALESCE(r.servico_preco, s.preco)
  WHERE r.servico_tipo IS NULL;
+
+-- --- SOFT DELETE DE CLIENTES ---
+-- Registros antigos sem valor em "ativo" passam a ser ativos
+UPDATE clientes SET ativo = 1 WHERE ativo IS NULL;
+
+-- Serviço pode ficar sem cliente vinculado (cliente removido em versões antigas)
+ALTER TABLE servicos MODIFY id_cliente BIGINT NULL;
+
+-- Nome histórico do cliente no serviço (preserva a identificação mesmo após exclusão)
+UPDATE servicos s
+  JOIN clientes c ON c.id_cliente = s.id_cliente
+   SET s.cliente_nome = c.nome
+ WHERE s.cliente_nome IS NULL;
+
+-- Relatórios antigos sem nome registrado: usa o nome histórico do serviço
+UPDATE relatorios r
+  JOIN servicos s ON s.id_servico = r.id_servico
+   SET r.cliente_nome = s.cliente_nome
+ WHERE r.cliente_nome IS NULL AND s.cliente_nome IS NOT NULL;

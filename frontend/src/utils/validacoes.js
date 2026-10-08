@@ -103,3 +103,16 @@ export function ordenarHierarquia(servicos) {
 // --- STATUS FINALIZADOS: serviço somente leitura (sem edição, remarcação ou exclusão) ---
 export const STATUS_FINALIZADOS = ['Concluído', 'Cancelado']
 export const servicoFinalizado = s => STATUS_FINALIZADOS.includes(s?.status)
+
+// --- CLIENTE EXCLUÍDO (soft delete) ---
+// Excluído = cliente inativo (ativo === false) ou não mais vinculado ao serviço
+export function clienteExcluido(servico) {
+  return !servico?.cliente || servico.cliente.ativo === false
+}
+
+// Nome para exibição: nome atual/histórico + marcação de excluído
+export function nomeClienteServico(servico, nomeHistorico) {
+  const nome = servico?.cliente?.nome || servico?.clienteNome || nomeHistorico
+  if (!clienteExcluido(servico)) return nome || 'Cliente não informado'
+  return nome ? `${nome} (Excluído)` : 'Cliente Desativado/Excluído'
+}
